@@ -749,6 +749,11 @@ struct Scissor {
 	
 };
 
+struct DXShader {
+	ID3D12PipelineState* pipeline_state;
+};
+
+
 struct CommandBuffer {
 
 };
