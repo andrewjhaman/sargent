@@ -1,0 +1,5 @@
+
+dxcompiler.pdb
+*.db
+*.db-shm
+*.opendb

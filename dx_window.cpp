@@ -43,7 +43,12 @@ static u32 window_height = 1080;
 #include <assert.h>
 
 #include <stdio.h>
-#include <D3DCompiler.h>
+
+//#include <D3DCompiler.h>
+#include <dxcapi.h>
+#include <d3d12shader.h>
+
+
 #include <D3d12.h>
 #include <D3d12SDKLayers.h>
 #include <dxgi.h>
@@ -52,6 +57,13 @@ static u32 window_height = 1080;
 
 
 #include "utils.h"
+
+//#define FAST_OBJ_IMPLEMENTATION
+//#include "fast_obj.h"
+
+
+#define OBJ_PARSE_IMPLEMENTATION
+#include "obj_parse.h"
 
 //http://developer.download.nvidia.com/devzone/devcenter/gamegraphics/files/OptimusRenderingPolicies.pdf
 //The following line is to favor the high performance NVIDIA GPU if there are multiple GPUs
@@ -65,7 +77,7 @@ extern "C" { _declspec(dllexport) unsigned int AmdPowerXpressRequestHighPerforma
 #pragma comment( lib, "D3d12" )
 #pragma comment( lib, "DXGI" )
 #pragma comment( lib, "User32")
-#pragma comment( lib, "d3dcompiler")
+#pragma comment( lib, "dxcompiler")
 
 
 #include <comdef.h>
@@ -83,6 +95,37 @@ bool _must_succeed(HRESULT result) {
 
 
 static constexpr u32 back_buffer_count = 2;
+
+
+u32 temp__index_count = 0;
+
+
+
+u32 rng = 1337;
+void advance_rng(u32 *rng) {
+	*rng *= 1664525;
+	*rng += 1013904223;
+}
+f32 rand_f32_normal(u32 *rng) {
+	f32 result = (*rng >> 8) / 16777216.0f;   
+	advance_rng(rng);    
+	return result;
+}
+f32 rand_f32_in_range(f32 bottom_inclusive, f32 top_inclusive, u32 *rng)
+{
+	if (bottom_inclusive > top_inclusive)
+	{
+		f32 temp = top_inclusive;
+		top_inclusive = bottom_inclusive;
+		bottom_inclusive = temp;
+	}    
+	f32 range = top_inclusive - bottom_inclusive;    
+	f32 normal = rand_f32_normal(rng);
+	advance_rng(rng);
+	return normal * range + bottom_inclusive;
+}
+
+
 
 ID3D12Resource* vertex_buffer;
 D3D12_VERTEX_BUFFER_VIEW vertex_buffer_view;
@@ -172,6 +215,8 @@ void init_directx12(HWND window)
     MUST_SUCCEED(device->QueryInterface(IID_PPV_ARGS(&debug_info_queue)));
     debug_info_queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, true);
     debug_info_queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, true);
+	debug_info_queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, true);
+
     debug_info_queue->Release();
 #endif
     
@@ -374,16 +419,37 @@ void init_directx12(HWND window)
     struct Vertex
     {
         f32 position[3];
-        f32 colour [3];
+        f32 normal [3];
     };
-    
-	Vertex vertex_buffer_data[] = {
-		{{-1.0f, -1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}},
-		{{1.0f, -1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}},
-        {{0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}}};
-    
-    
-    u32 vertex_buffer_size = sizeof(vertex_buffer_data);
+
+
+	ParsedOBJ obj = LoadOBJ("bunny.obj");
+	assert(obj.renderable_count == 1);
+	ParsedOBJRenderable renderable = obj.renderables[0];
+
+	//Vertex* vertex_buffer_data = (Vertex*)renderable.vertices;
+
+	Vertex* vertex_buffer_data = new Vertex[renderable.vertex_count];
+
+	for (u32 i = 0; i < renderable.vertex_count; i++)
+	{
+		vertex_buffer_data[i].position[0] = renderable.vertices[i*8+0];
+		vertex_buffer_data[i].position[1] = renderable.vertices[i*8+1];
+		vertex_buffer_data[i].position[2] = renderable.vertices[i*8+2];
+
+		vertex_buffer_data[i].normal[0] = renderable.vertices[i*8+3+2];
+		vertex_buffer_data[i].normal[1] = renderable.vertices[i*8+4+2];
+		vertex_buffer_data[i].normal[2] = renderable.vertices[i*8+5+2];
+	}
+
+
+	u32 vertex_buffer_size = sizeof(Vertex) * renderable.vertex_count;
+
+
+
+
+	//Vertex* vertex_buffer_data = [
+	
     
     D3D12_HEAP_PROPERTIES heap_properties;
     heap_properties.Type = D3D12_HEAP_TYPE_UPLOAD;
@@ -417,10 +483,13 @@ void init_directx12(HWND window)
     vertex_buffer_view.SizeInBytes = vertex_buffer_size;
     
     
-    u32 index_buffer_data[3] = {0, 1, 2};
+    //u32 index_buffer_data[3] = {0, 1, 2};
+	//u32 index_buffer_size = sizeof(index_buffer_data);
+	u32* index_buffer_data = (u32*)renderable.indices;
+	u32 index_buffer_size = sizeof(u32) * renderable.index_count;
+	temp__index_count = renderable.index_count;
     
     
-    u32 index_buffer_size = sizeof(index_buffer_data);
     vertex_buffer_resource_description.Width = index_buffer_size;
     MUST_SUCCEED(device->CreateCommittedResource(&heap_properties, D3D12_HEAP_FLAG_NONE, &vertex_buffer_resource_description, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&index_buffer)));
     u8* index_buffer_data_begin = 0;
@@ -428,42 +497,103 @@ void init_directx12(HWND window)
     memcpy(index_buffer_data_begin, index_buffer_data, index_buffer_size);
     index_buffer->Unmap(0, nullptr);
     
+
+	FreeParsedOBJ(&obj);
+
     index_buffer_view.BufferLocation = index_buffer->GetGPUVirtualAddress();
     index_buffer_view.Format = DXGI_FORMAT_R32_UINT;
     index_buffer_view.SizeInBytes = index_buffer_size;
     
     D3D12_SHADER_BYTECODE vertex_shader_byte_code;
     D3D12_SHADER_BYTECODE pixel_shader_byte_code;
-
-    ReadFileResult vs_read_result = read_entire_file("vertex_shader.hlsl");
-    char* vertex_shader_source = (char*)vs_read_result.data;
     
-    ID3DBlob* vertex_shader_blob = 0;
     ID3DBlob* errors = 0;
-    D3DCompile(vertex_shader_source, vs_read_result.size, "vertex_shader.hlsl", NULL, D3D_COMPILE_STANDARD_FILE_INCLUDE, "main", "vs_4_0", 0, 0, &vertex_shader_blob, &errors);
-    if(errors) printf("D3DCompile Errors:\n%s\n", (char*)errors->GetBufferPointer());
-    if(!vertex_shader_blob) REPORT_ERROR("Vertex Shader Blob is not valid.!");
-    
+	u32 compile_flags = 0;
+
+//#ifdef _DEBUG
+//	//compile_flags |= D3DCOMPILE_DEBUG;
+//#endif
+//	D3DCompile(vertex_shader_source, vs_read_result.size, "vertex_shader.hlsl", NULL, D3D_COMPILE_STANDARD_FILE_INCLUDE, "main", "vs_6_6", compile_flags, 0, &vertex_shader_blob, &errors);
+	IDxcUtils* utils;
+	IDxcCompiler3* compiler;
+	IDxcIncludeHandler* include_handler;
+
+	DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&utils));
+	DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&compiler));
+	DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&utils));
+	utils->CreateDefaultIncludeHandler(&include_handler);
+
+	LPCWSTR vertex_shader_path = L"vertex_shader.hlsl";
+	LPCWSTR vertex_shader_args[] =
+	{
+		vertex_shader_path,
+		L"-E", L"main",
+		L"-T", L"vs_6_5",
+		L"-Zi"
+	};
+	IDxcBlobEncoding* vertex_source_pointer = 0;
+	utils->LoadFile(vertex_shader_path, 0, &vertex_source_pointer);
+	DxcBuffer vertex_source;
+	vertex_source.Ptr  = vertex_source_pointer->GetBufferPointer();
+	vertex_source.Size = vertex_source_pointer->GetBufferSize();
+	vertex_source.Encoding = DXC_CP_ACP;
+
+	IDxcResult* vertex_shader_results;
+	compiler->Compile(&vertex_source, vertex_shader_args, sizeof(vertex_shader_args) / sizeof(vertex_shader_args[0]), include_handler, IID_PPV_ARGS(&vertex_shader_results));
+
+	IDxcBlobUtf8* shader_errors = 0;
+	vertex_shader_results->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&shader_errors), 0);
+
+	if(shader_errors && shader_errors->GetStringLength()) printf("Shader Compilation Errors:\n%ls:%s\n", vertex_shader_path, (char*)shader_errors->GetBufferPointer());
+
+	HRESULT vertex_shader_status;
+	vertex_shader_results->GetStatus(&vertex_shader_status);
+    if(FAILED(vertex_shader_status)) REPORT_ERROR("Vertex Shader Blob is not valid.!");
+
+	IDxcBlob* vertex_shader_blob = 0;
+	IDxcBlobUtf16* vertex_shader_name = 0;
+	vertex_shader_results->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(&vertex_shader_blob), &vertex_shader_name);
+
     vertex_shader_byte_code.pShaderBytecode = vertex_shader_blob->GetBufferPointer();
     vertex_shader_byte_code.BytecodeLength = vertex_shader_blob->GetBufferSize();
     if(!vertex_shader_byte_code.pShaderBytecode || !vertex_shader_byte_code.BytecodeLength)
         REPORT_ERROR("Error getting bytecode from vertex shader!");
-    
-    ReadFileResult ps_read_result = read_entire_file("pixel_shader.hlsl");
-    char* pixel_shader_source = (char*)ps_read_result.data;
-    
-    ID3DBlob* pixel_shader_blob = 0;
-    errors = 0;
-    D3DCompile(pixel_shader_source, ps_read_result.size, "pixel_shader.hlsl", NULL, D3D_COMPILE_STANDARD_FILE_INCLUDE, "main", "ps_4_0", 0, 0, &pixel_shader_blob, &errors);
-    if(errors) printf("D3DCompile Errors:\n%s\n", (char*)errors->GetBufferPointer());
-    if(!vertex_shader_blob) REPORT_ERROR("Index Shader Blob is not valid.!");
 
-    free(ps_read_result.data);
     
-    pixel_shader_byte_code.pShaderBytecode = pixel_shader_blob->GetBufferPointer();
-    pixel_shader_byte_code.BytecodeLength = pixel_shader_blob->GetBufferSize();
-    if(!pixel_shader_byte_code.pShaderBytecode || !pixel_shader_byte_code.BytecodeLength)
-        REPORT_ERROR("Error getting bytecode from index shader!");
+	LPCWSTR pixel_shader_path = L"pixel_shader.hlsl";
+	LPCWSTR pixel_shader_args[] =
+	{
+		vertex_shader_path,
+		L"-E", L"main",
+		L"-T", L"ps_6_5",
+		L"-Zi"
+	};
+	IDxcBlobEncoding* pixel_source_pointer = 0;
+	utils->LoadFile(pixel_shader_path, 0, &pixel_source_pointer);
+	DxcBuffer pixel_source;
+	pixel_source.Ptr  = pixel_source_pointer->GetBufferPointer();
+	pixel_source.Size = pixel_source_pointer->GetBufferSize();
+	pixel_source.Encoding = DXC_CP_ACP;
+
+	IDxcResult* pixel_shader_results;
+	compiler->Compile(&pixel_source, pixel_shader_args, sizeof(pixel_shader_args) / sizeof(pixel_shader_args[0]), include_handler, IID_PPV_ARGS(&pixel_shader_results));
+
+	pixel_shader_results->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&shader_errors), 0);
+
+	if(shader_errors && shader_errors->GetStringLength()) printf("Shader Compilation Errors:\n%ls:%s\n", pixel_shader_path, (char*)shader_errors->GetBufferPointer());
+
+	HRESULT pixel_shader_status;
+	pixel_shader_results->GetStatus(&pixel_shader_status);
+	if(FAILED(pixel_shader_status)) REPORT_ERROR("Pixel Shader Blob is not valid.!");
+
+	IDxcBlob* pixel_shader_blob = 0;
+	IDxcBlobUtf16* pixel_shader_name = 0;
+	pixel_shader_results->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(&pixel_shader_blob), &pixel_shader_name);
+
+	pixel_shader_byte_code.pShaderBytecode = pixel_shader_blob->GetBufferPointer();
+	pixel_shader_byte_code.BytecodeLength = pixel_shader_blob->GetBufferSize();
+	if(!pixel_shader_byte_code.pShaderBytecode || !pixel_shader_byte_code.BytecodeLength)
+		REPORT_ERROR("Error getting bytecode from pixel shader!");
     
     
     D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline_state_object_description = {};
@@ -580,7 +710,7 @@ void draw()
 
     
     render_target_view_handle = {render_target_view_heap->GetCPUDescriptorHandleForHeapStart()};
-    
+   
     render_target_view_handle.ptr += frame_index * render_target_view_descriptor_size;
     
     command_list->OMSetRenderTargets(1, &render_target_view_handle, FALSE, nullptr);
@@ -598,14 +728,32 @@ void draw()
 	static float time = 0.0f;
 	time += 1 / 60.0f;
 
-	D3D12_RANGE read_range = {};
-	f32* time_data = 0;
-	MUST_SUCCEED(constant_buffers[frame_index]->Map(0, &read_range, (void**)&time_data));
-	memcpy(time_data, &time, sizeof(time));
-	constant_buffers[frame_index]->Unmap(0, nullptr);
+	struct Bindings
+	{
+		float time_other;
+		vec3 position;
+	};
 
-    command_list->DrawIndexedInstanced(3, 1, 0, 0, 0);
-    
+	Bindings bindings = {};
+	bindings.time_other = time;
+
+	rng = 1337;
+	advance_rng((&rng));
+
+	D3D12_RANGE read_range = {};
+	Bindings* binding_data = 0;
+
+	f32 range = 0.5f;
+	bindings.position = { rand_f32_in_range(-range, range, &rng), rand_f32_in_range(-range, range, &rng), rand_f32_in_range(-range, range, &rng) };
+	bindings.position.z += 5.0f;
+
+	MUST_SUCCEED(constant_buffers[frame_index]->Map(0, &read_range, (void**)&binding_data));
+	memcpy(binding_data, &bindings, sizeof(bindings));
+	constant_buffers[frame_index]->Unmap(0, nullptr);	
+
+	command_list->DrawIndexedInstanced(temp__index_count, 1, 0, 0, 0);
+	
+
     D3D12_RESOURCE_BARRIER present_barrier;
     present_barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
     present_barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
@@ -617,11 +765,11 @@ void draw()
     
     MUST_SUCCEED(command_list->Close());
     
-    
-    
+        
     ID3D12CommandList* command_lists[] = {command_list};
     command_queue->ExecuteCommandLists(1, command_lists);
-    
+
+
     swap_chain->Present(1, 0);
     
     
@@ -705,28 +853,6 @@ struct DrawUniforms {
 
 u32 random_int(u32 upper_limit_exclusive) {
 	return rand() % upper_limit_exclusive;
-}
-void advance_rng(u32 *rng) {
-	*rng *= 1664525;
-	*rng += 1013904223;
-}
-f32 rand_f32_normal(u32 *rng) {
-	f32 result = (*rng >> 8) / 16777216.0f;   
-	advance_rng(rng);    
-	return result;
-}
-f32 rand_f32_in_range(f32 bottom_inclusive, f32 top_inclusive, u32 *rng)
-{
-	if (bottom_inclusive > top_inclusive)
-	{
-		f32 temp = top_inclusive;
-		top_inclusive = bottom_inclusive;
-		bottom_inclusive = temp;
-	}    
-	f32 range = top_inclusive - bottom_inclusive;    
-	f32 normal = rand_f32_normal(rng);
-	advance_rng(rng);
-	return normal * range + bottom_inclusive;
 }
 
 
@@ -847,8 +973,6 @@ void game_render() {
 		constexpr u32 object_count = 10000;
 		auto draws = std::vector<Draw>(object_count);
 
-		u32 rng = 1337;
-
 
 		u32 data_offset = 0;
 		for (int i = 0; i , object_count; ++i)
@@ -938,6 +1062,8 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdArgs,
 
     MSG message = {};
     
+	f32 dt = 0.0f;
+
     bool should_quit = false;
     while(!should_quit)
     {
@@ -950,13 +1076,18 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdArgs,
                     PAINTSTRUCT paintStruct;
                     HDC deviceContext = BeginPaint(window, &paintStruct);
                     draw();
+
                     //win32DrawWindow(deviceContext);
                     EndPaint(window, &paintStruct);
                 }break;
+				case WM_CLOSE:
+				case WM_DESTROY:
                 case WM_QUIT:
                 {
                     should_quit = true;
-                    ExitProcess(0);
+					DestroyWindow(console_window);
+					//PostQuitMessage(0);
+                    //ExitProcess(0);
                 }break;
             }
             TranslateMessage(&message);
@@ -964,5 +1095,9 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdArgs,
         }
         
         draw();
+
+		char window_title[4096];
+		sprintf_s(window_title, sizeof(window_title), "Sargent Renderer: dt:%.2f, Tris:%u", dt, temp__index_count / 3);
+		SetWindowTextA(window, window_title);
     }
 }

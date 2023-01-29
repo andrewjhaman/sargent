@@ -15,10 +15,13 @@ struct VertexOutput
 cbuffer ObjectBindings : register(b0)
 {
 	float time_other;
-	float3x4 vertex_transform;
-	float3x4 object_to_world;
-	float3x4 inverse_transpose_object_to_world;
+	float3 position;
 };
+
+float3 rotate_vec_by_quat(float3 v, float4 q)
+{
+	return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v);
+}
 
 
 VertexOutput main(VertexInput vertex_input)
@@ -28,8 +31,25 @@ VertexOutput main(VertexInput vertex_input)
 
    in_colour.y *= sin(time_other * 10) * 0.5 + 0.5;
 
+   float half_angle = time_other * 0.5;
+
+   float4 quat = { 0.0, sin(half_angle), 0.0, cos(half_angle) };
+   quat = normalize(quat);
+   in_pos = rotate_vec_by_quat(in_pos, quat);
+
+
+   in_pos += position;
+
+
    VertexOutput output;
-   output.position = float4(in_pos, 1.0);
+
+   output.position.x = in_pos.x;
+   output.position.y = in_pos.y;
+   output.position.z = in_pos.z - 0.2;
+   output.position.w = in_pos.z;
+
+
+
    output.colour = in_colour;
    return output;
 }
