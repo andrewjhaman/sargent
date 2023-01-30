@@ -25,6 +25,36 @@ struct vec3 {
 
 };
 
+struct vec4 {
+	union {
+		struct {
+			f32 x;
+			f32 y;
+			f32 z;
+			f32 w;
+		};
+		struct {
+			f32 data[4];
+		};
+	};
+};
+
+#include <math.h>
+f32 length(vec4 v) {
+	return sqrt(v.x*v.x + v.y*v.y + v.z*v.z);
+};
+
+vec4 normalize(vec4 v) {
+	vec4 result = v;
+	f32 len = length(v);
+	result.x /= len;
+	result.y /= len;
+	result.z /= len;
+	result.w /= len;
+	return result;
+};
+
+
 static u32 window_width = 1920;
 static u32 window_height = 1080;
 
@@ -156,6 +186,13 @@ UINT frame_index;
 HANDLE fence_event;
 ID3D12Fence* fence;
 UINT64 fence_value;
+
+struct DrawInfo
+{
+	vec3 position;
+	vec4 quat;
+};
+
 
 void init_directx12(HWND window)
 {
@@ -318,14 +355,20 @@ void init_directx12(HWND window)
 	ranges[0].NumDescriptors = UINT_MAX;
 	ranges[0].OffsetInDescriptorsFromTableStart = 0;
 	ranges[0].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE;
-	
 
-	D3D12_ROOT_PARAMETER1 root_parameters[1];
+
+	D3D12_ROOT_PARAMETER1 root_parameters[2];
 	root_parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	root_parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 	
 	root_parameters[0].DescriptorTable.NumDescriptorRanges = sizeof(ranges) / sizeof(D3D12_DESCRIPTOR_RANGE1);
 	root_parameters[0].DescriptorTable.pDescriptorRanges = ranges;
+
+	root_parameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+	root_parameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+	root_parameters[1].Constants.ShaderRegister = 0;
+	root_parameters[1].Constants.RegisterSpace  = 0;
+	root_parameters[1].Constants.Num32BitValues = (sizeof(DrawInfo) + 3) / 4;
 
 
 
@@ -388,10 +431,11 @@ void init_directx12(HWND window)
 	
 	D3D12_VERSIONED_ROOT_SIGNATURE_DESC root_signature_description;
 	root_signature_description.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
-	root_signature_description.Desc_1_1.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT | 
+	root_signature_description.Desc_1_1.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
+		/*D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT | 
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
-		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
+		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;*/
 	root_signature_description.Desc_1_1.NumParameters = sizeof(root_parameters) / sizeof(D3D12_ROOT_PARAMETER1);
 	root_signature_description.Desc_1_1.pParameters = root_parameters;
 	root_signature_description.Desc_1_1.NumStaticSamplers = 0;
@@ -634,11 +678,7 @@ void init_directx12(HWND window)
 	
 	
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline_state_object_description = {};
-//    D3D12_INPUT_ELEMENT_DESC input_element_descriptions[] = {
-//        {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-//        {"COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}};
-//    pipeline_state_object_description.InputLayout = {input_element_descriptions, 2};
-//    
+   
 	
 	pipeline_state_object_description.pRootSignature = root_signature;
 	
@@ -739,13 +779,14 @@ void draw()
 	command_list->SetGraphicsRootSignature(root_signature);
 	
 	
-	//ID3D12DescriptorHeap* descriptor_heaps[] = { constant_buffer_heaps[frame_index] };
-	//command_list->SetDescriptorHeaps(_countof(descriptor_heaps), descriptor_heaps);
-	//command_list->SetGraphicsRootDescriptorTable(0, constant_buffer_heaps[frame_index]->GetGPUDescriptorHandleForHeapStart());
-//
+
 	ID3D12DescriptorHeap* descriptor_heaps[] = { vertex_buffer_heap };
 	command_list->SetDescriptorHeaps(_countof(descriptor_heaps), descriptor_heaps);
 	command_list->SetGraphicsRootDescriptorTable(0, vertex_buffer_heap->GetGPUDescriptorHandleForHeapStart());
+
+	//descriptor_heaps = { constant_buffer_heaps[frame_index] };
+	//command_list->SetDescriptorHeaps(_countof(descriptor_heaps), descriptor_heaps);
+	//command_list->SetGraphicsRootDescriptorTable(0, constant_buffer_heaps[frame_index]->GetGPUDescriptorHandleForHeapStart());
 
 
 	render_target_view_handle = {render_target_view_heap->GetCPUDescriptorHandleForHeapStart()};
@@ -767,35 +808,22 @@ void draw()
 	static float time = 0.0f;
 	time += 1 / 60.0f;
 
-	//struct Bindings
-	//{
-		//float time_other;
-		//vec3 position;
-	//};
-//
-	//Bindings bindings = {};
-	//bindings.time_other = time;
-//
-	//rng = 1337;
-	//advance_rng((&rng));
+	rng = 1337;
+	advance_rng((&rng));
 
+	u32 draw_count = 500;
 	
-	//D3D12_RANGE read_range;
-	//Bindings* binding_data = 0;
+	f32 p_range = 10.0f;
 
-	u32 draw_count = 1;
-	
 	for (u32 i = 0; i < draw_count; ++i)
 	{		
-		//f32 range = 0.5f;
-		//bindings.position = { rand_f32_in_range(-range, range, &rng), rand_f32_in_range(-range, range, &rng), rand_f32_in_range(-range, range, &rng) };
-		//bindings.position.z += 5.0f;
+		DrawInfo draw_info;
+		draw_info.position = { rand_f32_in_range(-p_range, p_range, &rng), rand_f32_in_range(-p_range, p_range, &rng), rand_f32_in_range(-p_range, p_range, &rng) };
+		draw_info.quat = { rand_f32_in_range(-1.0, 1.0, &rng), rand_f32_in_range(-1.0, 1.0, &rng), rand_f32_in_range(-1.0, 1.0, &rng), rand_f32_in_range(-1.0, 1.0, &rng) };
+		draw_info.quat = normalize(draw_info.quat);
+		draw_info.position.z += 2.5f;
 
-
-//		MUST_SUCCEED(constant_buffers[frame_index]->Map(0, &read_range, (void**)&binding_data));
-//		memcpy(binding_data, &bindings, sizeof(bindings));
-//		constant_buffers[frame_index]->Unmap(0, nullptr);
-
+		command_list->SetGraphicsRoot32BitConstants(1, (sizeof(DrawInfo) + 3) / 4, &draw_info, 0);
 		command_list->DrawIndexedInstanced(temp__index_count, 1, 0, 0, 0);
 	}
 

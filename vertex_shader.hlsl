@@ -11,12 +11,18 @@ struct VertexOutput
 	float4 position : SV_Position;
 };
 
-//
-//cbuffer ObjectBindings : register(b0)
-//{
-//	float time_other;
-//	float3 position;
-//};
+
+struct DrawInfo
+{
+	float3 position;
+	float4 quat;
+};
+
+cbuffer GlobalBindings : register(b0, space0)
+{
+	DrawInfo draw_info;
+};
+
 
 float3 rotate_vec_by_quat(float3 v, float4 q)
 {
@@ -32,7 +38,7 @@ struct Vertex
 
 
 #define BUFFER_SPACE space0
-StructuredBuffer<Vertex> BufferTable[] : register(t0, BUFFER_SPACE);
+StructuredBuffer<Vertex> VertexBufferTable[] : register(t0, BUFFER_SPACE);
 
 
 VertexOutput main(uint vertex_id : SV_VertexID)
@@ -40,7 +46,7 @@ VertexOutput main(uint vertex_id : SV_VertexID)
 	//float3 in_pos    = vertex_input.in_position;
 	//float3 in_colour = vertex_input.in_colour;
 
-	Vertex vertex = BufferTable[0].Load(vertex_id);
+	Vertex vertex = VertexBufferTable[0].Load(vertex_id);
 
 	float3 in_pos = vertex.position;
 	float3 in_colour = vertex.normal;
@@ -55,8 +61,8 @@ VertexOutput main(uint vertex_id : SV_VertexID)
 	//in_pos = rotate_vec_by_quat(in_pos, quat);
 //
 //
-	//in_pos += position;
-	in_pos.z += 2.5;
+	in_pos += draw_info.position;
+	//in_pos.z += 2.5;
 
 
 	VertexOutput output;
