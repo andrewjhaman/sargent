@@ -89,8 +89,6 @@ VertexOutput main(uint vertex_id : SV_VertexID)
 	
 	output.position = mul( globals.projection, mul(globals.view, float4(in_pos, 1.0)));
 
-
-
 	output.colour = in_colour;
 	return output;
 }

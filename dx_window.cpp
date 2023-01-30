@@ -86,31 +86,6 @@ static constexpr u32 back_buffer_count = 2;
 u64 triangle_count = 0;
 
 
-u32 rng = 1337;
-void advance_rng(u32 *rng) {
-	*rng *= 1664525;
-	*rng += 1013904223;
-}
-f32 rand_f32_normal(u32 *rng) {
-	f32 result = (*rng >> 8) / 16777216.0f;   
-	advance_rng(rng);    
-	return result;
-}
-f32 rand_f32_in_range(f32 bottom_inclusive, f32 top_inclusive, u32 *rng)
-{
-	if (bottom_inclusive > top_inclusive)
-	{
-		f32 temp = top_inclusive;
-		top_inclusive = bottom_inclusive;
-		bottom_inclusive = temp;
-	}    
-	f32 range = top_inclusive - bottom_inclusive;    
-	f32 normal = rand_f32_normal(rng);
-	advance_rng(rng);
-	return normal * range + bottom_inclusive;
-}
-
-
 ID3D12Device* device;
 
 
@@ -128,6 +103,13 @@ u32 current_buffer;
 ID3D12DescriptorHeap* render_target_view_heap;
 ID3D12Resource* render_targets[back_buffer_count];
 u32 render_target_view_descriptor_size;
+
+
+D3D12_DEPTH_STENCIL_DESC default_depth_stencil_state;
+ID3D12DescriptorHeap* depth_stencil_descriptor_heap;
+ID3D12Resource* depth_stencil_targets[back_buffer_count];
+u32 depth_stencil_target_descriptor_size;
+
 ID3D12CommandQueue* command_queue;
 UINT frame_index;
 HANDLE fence_event;
@@ -416,6 +398,72 @@ void init_directx12(HWND window)
 		render_target_view_handle.ptr += (1 * render_target_view_descriptor_size);
 	}
 	
+
+	//Depth Stencil
+	{
+		default_depth_stencil_state.DepthEnable = true;
+		default_depth_stencil_state.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+		default_depth_stencil_state.DepthFunc = D3D12_COMPARISON_FUNC_GREATER;
+		default_depth_stencil_state.StencilEnable = false;
+		default_depth_stencil_state.StencilReadMask = D3D12_DEFAULT_STENCIL_READ_MASK; 
+		default_depth_stencil_state.StencilWriteMask = D3D12_DEFAULT_STENCIL_WRITE_MASK;
+
+		D3D12_DEPTH_STENCILOP_DESC stencil_op = { D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_COMPARISON_FUNC_ALWAYS };
+		default_depth_stencil_state.FrontFace = stencil_op;
+		default_depth_stencil_state.BackFace = stencil_op;
+
+
+
+		D3D12_DESCRIPTOR_HEAP_DESC depth_stencil_heap_descriptions = {};
+		depth_stencil_heap_descriptions.NumDescriptors = back_buffer_count;
+		depth_stencil_heap_descriptions.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+		depth_stencil_heap_descriptions.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+		MUST_SUCCEED(device->CreateDescriptorHeap(&depth_stencil_heap_descriptions, IID_PPV_ARGS(&depth_stencil_descriptor_heap)));
+
+		D3D12_DEPTH_STENCIL_VIEW_DESC depth_stencil_view_description = {};
+		depth_stencil_view_description.Format = DXGI_FORMAT_D32_FLOAT;
+		depth_stencil_view_description.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+		depth_stencil_view_description.Flags = D3D12_DSV_FLAG_NONE;
+
+		D3D12_CLEAR_VALUE depth_optimized_clear_value = {};
+		depth_optimized_clear_value.Format = DXGI_FORMAT_D32_FLOAT;
+		depth_optimized_clear_value.DepthStencil.Depth = 0.0f;
+		depth_optimized_clear_value.DepthStencil.Stencil = 0;
+
+		D3D12_HEAP_PROPERTIES heap_properties = {};
+		heap_properties.Type = D3D12_HEAP_TYPE_DEFAULT;
+		heap_properties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+		heap_properties.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+		heap_properties.CreationNodeMask = 1;
+		heap_properties.VisibleNodeMask = 1;
+
+
+		D3D12_RESOURCE_DESC resource_description = {};
+		resource_description.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+		resource_description.Alignment = 0;
+		resource_description.Width = window_width;
+		resource_description.Height = window_height;
+		resource_description.DepthOrArraySize = 1;
+		resource_description.MipLevels = 1;
+		resource_description.Format = DXGI_FORMAT_D32_FLOAT;
+		resource_description.SampleDesc.Count = 1;
+		resource_description.SampleDesc.Quality = 0;
+		resource_description.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+		resource_description.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
+
+		D3D12_CPU_DESCRIPTOR_HANDLE handle = depth_stencil_descriptor_heap->GetCPUDescriptorHandleForHeapStart();
+		depth_stencil_target_descriptor_size = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+
+		for (int i = 0; i < back_buffer_count; ++i)
+		{
+			device->CreateCommittedResource(&heap_properties, D3D12_HEAP_FLAG_NONE, &resource_description, D3D12_RESOURCE_STATE_DEPTH_WRITE, &depth_optimized_clear_value,IID_PPV_ARGS(&depth_stencil_targets[i]));
+			device->CreateDepthStencilView(depth_stencil_targets[i], &depth_stencil_view_description, handle);
+			handle.ptr += depth_stencil_target_descriptor_size;
+		}
+		depth_stencil_descriptor_heap->SetName(L"Depth/Stencil Resource Heap");
+
+	}
 	
 	
 	D3D12_FEATURE_DATA_ROOT_SIGNATURE feature_data = {};
@@ -685,8 +733,9 @@ void init_directx12(HWND window)
 	
 	pipeline_state_object_description.BlendState = blend_description;
 	
-	pipeline_state_object_description.DepthStencilState.DepthEnable = FALSE;
-	pipeline_state_object_description.DepthStencilState.StencilEnable = FALSE;
+
+	pipeline_state_object_description.DepthStencilState = default_depth_stencil_state;;
+	pipeline_state_object_description.DSVFormat = DXGI_FORMAT_D32_FLOAT;
 	pipeline_state_object_description.SampleMask = UINT_MAX;
 	
 	pipeline_state_object_description.NumRenderTargets = 1;
@@ -746,16 +795,19 @@ void draw(f64 dt)
 	command_list->SetGraphicsRootDescriptorTable(0, vertex_buffer_heap->GetGPUDescriptorHandleForHeapStart());
 
 	render_target_view_handle = {render_target_view_heap->GetCPUDescriptorHandleForHeapStart()};
-   
 	render_target_view_handle.ptr += frame_index * render_target_view_descriptor_size;
 	
-	command_list->OMSetRenderTargets(1, &render_target_view_handle, FALSE, nullptr);
+	D3D12_CPU_DESCRIPTOR_HANDLE depth_stencil_target_view_handle = { depth_stencil_descriptor_heap->GetCPUDescriptorHandleForHeapStart() };
+	depth_stencil_target_view_handle.ptr += frame_index * depth_stencil_target_descriptor_size;
+
+	command_list->OMSetRenderTargets(1, &render_target_view_handle, FALSE, &depth_stencil_target_view_handle);
 	
 	
 	f32 clear_colour[]  {0.03f, 0.19f, 0.22f, 1.0f};
 	command_list->RSSetViewports(1, &viewport);
 	command_list->RSSetScissorRects(1, &surface_rect);
 	command_list->ClearRenderTargetView(render_target_view_handle, clear_colour, 0, nullptr);
+	command_list->ClearDepthStencilView(depth_stencil_target_view_handle, D3D12_CLEAR_FLAG_DEPTH, 0.0f, 0, 0, nullptr);
 	command_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 
@@ -775,12 +827,18 @@ void draw(f64 dt)
 	f32 a = f32(window_width) / f32(window_height);
 	f32 n = 0.01f;
 
-	global_data.projection = perspective_infinite(70.0f, 0.01f, (f32)window_width, (f32)window_height);
+	global_data.projection = perspective_infinite_reversed_z(70.0f, 0.01f, (f32)window_width, (f32)window_height);
 
 	
-	vec3 target = Vec3(sinf((f32)time), 0.0f, -2.0f);
-	target = normalize(target);
-	global_data.view = look_at({}, target, { 0.0f, 1.0f, 0.0f });
+	vec3 cam_pos = {};
+	cam_pos.z -= time;
+
+	vec3 cam_dir = Vec3(sinf((f32)time), 0.0f, -2.0f);
+	cam_dir = normalize(cam_dir);
+	//cam_dir = { 0.0f, 0.0f, -1.0f };
+	
+	vec3 target = cam_pos + cam_dir;
+	global_data.view = look_at(cam_pos, target, { 0.0f, 1.0f, 0.0f });
 	//global_data.view = transpose(global_data.view);
 	global_data.time = (f32)time;
 

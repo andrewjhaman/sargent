@@ -254,7 +254,7 @@ Mat4x4 look_at(vec3 eye, vec3 target, vec3 up)
 }
 
 
-Mat4x4 perspective_infinite(f32 fov_in_degrees, f32 near_plane_distance, f32 width, f32 height)
+Mat4x4 perspective_infinite_reversed_z(f32 fov_in_degrees, f32 near_plane_distance, f32 width, f32 height)
 {
 	Mat4x4 result = {};
 
@@ -267,9 +267,36 @@ Mat4x4 perspective_infinite(f32 fov_in_degrees, f32 near_plane_distance, f32 wid
 
 	result.d[0][0] = e;
 	result.d[1][1] = e*aspect;
-	result.d[2][2] = epsilon-1.0f;
-	result.d[3][2] = -1.0f;
-	result.d[2][3] = (epsilon - 2.0f) * n;
+	result.d[2][2] = 0.0f;
+	result.d[2][3] = n;
+	result.d[3][2] = epsilon-1.0f;
 
 	return result;
+}
+
+
+
+
+u32 rng = 1337;
+void advance_rng(u32 *rng) {
+	*rng *= 1664525;
+	*rng += 1013904223;
+}
+f32 rand_f32_normal(u32 *rng) {
+	f32 result = (*rng >> 8) / 16777216.0f;   
+	advance_rng(rng);    
+	return result;
+}
+f32 rand_f32_in_range(f32 bottom_inclusive, f32 top_inclusive, u32 *rng)
+{
+	if (bottom_inclusive > top_inclusive)
+	{
+		f32 temp = top_inclusive;
+		top_inclusive = bottom_inclusive;
+		bottom_inclusive = temp;
+	}    
+	f32 range = top_inclusive - bottom_inclusive;    
+	f32 normal = rand_f32_normal(rng);
+	advance_rng(rng);
+	return normal * range + bottom_inclusive;
 }
