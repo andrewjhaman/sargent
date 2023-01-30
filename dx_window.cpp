@@ -1237,18 +1237,17 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdArgs,
 	
    
 	RegisterClassEx(&window_class);
-	//if(!RegisterClassEx(&window_class))
-	//REPORT_ERROR("Call to RegisterClassEx Failed!");
+
 	SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
 	RECT work_area;
 	SystemParametersInfo(SPI_GETWORKAREA, 0, &work_area, 0);
-    
-   
-
 	window_width = work_area.right - work_area.left;
 	window_height = work_area.bottom - work_area.top;
 	
+	window_width /= 2;
+	window_height /= 2;
+
 	HWND window = CreateWindowEx(0, window_class_name, window_title, WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, window_width, window_height, 0, 0, hInstance, 0);
 	//if(!window)
 	//REPORT_ERROR("Call to CreateWindowEx Failed!");
@@ -1256,10 +1255,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdArgs,
 	
 	init_directx12(window);
 
-	//srand(time(NULL));
-
 	MSG message = {};
-
 
 	LARGE_INTEGER timer_frequency;
 	QueryPerformanceFrequency(&timer_frequency);
