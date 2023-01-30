@@ -21,8 +21,8 @@ struct DrawInfo
 
 struct Globals
 {
-	float4x4 projection;
-	float4x4 view;
+	row_major float4x4 projection;
+	row_major float4x4 view;
 	float time;
 };
 
@@ -87,7 +87,7 @@ VertexOutput main(uint vertex_id : SV_VertexID)
 
 	VertexOutput output;
 	
-	output.position = mul( transpose(globals.projection), float4(in_pos, 1.0));
+	output.position = mul( globals.projection, mul(globals.view, float4(in_pos, 1.0)));
 
 
 

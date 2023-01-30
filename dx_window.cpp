@@ -158,7 +158,7 @@ struct Buffer
 Buffer vertex_buffer_1;
 Buffer vertex_buffer_2;
 
-Buffer constant_buffer;
+//Buffer constant_buffer;
 
 
 Buffer create_buffer(size_t size_in_bytes)
@@ -765,7 +765,7 @@ void draw(f64 dt)
 	rng = 101;
 	advance_rng((&rng));
 
-	u32 draw_count = 250;
+	u32 draw_count = 50;
 	
 
 	ShaderGlobals global_data = {};
@@ -778,10 +778,10 @@ void draw(f64 dt)
 	global_data.projection = perspective_infinite(70.0f, 0.01f, (f32)window_width, (f32)window_height);
 
 	
-	global_data.view = { 1.0f, 0.0f, 0.0f, 0.0f,
-						 0.0f, 1.0f, 0.0f, 0.0f,
-						 0.0f, 0.0f, 1.0f, 0.0f,
-						 0.0f, 0.0f, 0.0f, 1.0f};
+	vec3 target = Vec3(sinf((f32)time), 0.0f, -2.0f);
+	target = normalize(target);
+	global_data.view = look_at({}, target, { 0.0f, 1.0f, 0.0f });
+	//global_data.view = transpose(global_data.view);
 	global_data.time = (f32)time;
 
 	command_list->SetGraphicsRoot32BitConstants(2, (sizeof(global_data) + 3) / 4, &global_data, 0);
@@ -1179,7 +1179,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdArgs,
 	{
 		LARGE_INTEGER current_count;
 		QueryPerformanceCounter(&current_count);
-		f64 dt = f64(current_count.QuadPart - last_count.QuadPart) / timer_frequency.QuadPart;
+		f64 dt = f64(current_count.QuadPart - last_count.QuadPart) / (f64)timer_frequency.QuadPart;
 		last_count = current_count;
 
 		f64 percent = 0.1;
@@ -1222,7 +1222,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdArgs,
 		draw(dt);
 
 		char window_title[4096];
-		sprintf_s(window_title, sizeof(window_title), "Sargent Renderer: dt:%.2fms, Tris:%llu, %.3fM:tris/s", smooth_dt*100, triangle_count, f64(triangle_count)/smooth_dt/1000000);
+		sprintf_s(window_title, sizeof(window_title), "Sargent Renderer: dt:%.2fms, Tris:%llu, %.3fM:tris/s", smooth_dt*1000, triangle_count, f64(triangle_count)/smooth_dt/1000000);
 		SetWindowTextA(window, window_title);
 	}
 }
