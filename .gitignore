@@ -3,3 +3,7 @@ dxcompiler.pdb
 *.db
 *.db-shm
 *.opendb
+*.vsidx
+*.vsidx
+*.vsidx
+.vs/dx12_renderer/v17/.suo

@@ -131,6 +131,8 @@ u32 temp__index_count = 0;
 u32 temp__index_count_2 = 0;
 
 
+u64 triangle_count = 0;
+
 
 u32 rng = 1337;
 void advance_rng(u32 *rng) {
@@ -813,7 +815,7 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
 	return result;
 }
 
-void draw()
+void draw(f64 dt)
 {
 	MUST_SUCCEED(command_allocator->Reset());
 	MUST_SUCCEED(command_list->Reset(command_allocator, 0));
@@ -860,19 +862,21 @@ void draw()
 	//command_list->IASetVertexBuffers(0, 1, &vertex_buffer_view);
 
 
-	static float time = 0.0f;
-	time += 1 / 60.0f;
+	static f64 time = 0.0f;
+	time += dt;
 
 	rng = 101;
 	advance_rng((&rng));
 
-	u32 draw_count = 100;
+	u32 draw_count = 250;
 	
 	//ShaderGlobals shader_globals = {};
 	//shader_globals.time = time;
 	//command_list->SetGraphicsRoot32BitConstants(2, (sizeof(ShaderGlobals) + 3) / 4, &shader_globals, 0);
 
 	srand(101);
+
+	triangle_count = 0;
 
 	f32 p_range = 5.0f;
 	for (u32 i = 0; i < draw_count; ++i)
@@ -889,12 +893,14 @@ void draw()
 		//draw_info.quat = { 0.0f, 0.0f, 0.0f, 1.0f };
 		draw_info.position.z += 2.5f;
 		draw_info.vertex_buffer_index = mesh_index;
-		draw_info.time = time;
+		draw_info.time = (f32)time;
 
 		command_list->SetGraphicsRoot32BitConstants(1, (sizeof(DrawInfo) + 3) / 4, &draw_info, 0);
 
 		u32 num_indices = mesh_index == 0 ? temp__index_count : temp__index_count_2;
 		command_list->DrawIndexedInstanced(num_indices, 1, 0, 0, 0);
+
+		triangle_count += num_indices / 3;
 	}
 
 	D3D12_RESOURCE_BARRIER present_barrier;
@@ -1207,12 +1213,27 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdArgs,
 	//srand(time(NULL));
 
 	MSG message = {};
-	
-	f32 dt = 0.0f;
+
+
+	LARGE_INTEGER timer_frequency;
+	QueryPerformanceFrequency(&timer_frequency);
+
+	LARGE_INTEGER last_count;
+	QueryPerformanceCounter(&last_count);
+
+	f64 smooth_dt = 1 / 60.0f;
 
 	bool should_quit = false;
 	while(!should_quit)
 	{
+		LARGE_INTEGER current_count;
+		QueryPerformanceCounter(&current_count);
+		f64 dt = f64(current_count.QuadPart - last_count.QuadPart) / timer_frequency.QuadPart;
+		last_count = current_count;
+
+		f64 percent = 0.1;
+		smooth_dt = dt*percent + dt*(1.0-percent);
+
 		while(PeekMessage(&message, 0, 0, 0, PM_REMOVE))
 		{
 			switch (message.message)
@@ -1221,7 +1242,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdArgs,
 				{
 					PAINTSTRUCT paintStruct;
 					HDC deviceContext = BeginPaint(window, &paintStruct);
-					draw();
+					draw(dt);
 
 					//win32DrawWindow(deviceContext);
 					EndPaint(window, &paintStruct);
@@ -1245,10 +1266,10 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdArgs,
 			DispatchMessage(&message);
 		}
 		
-		draw();
+		draw(dt);
 
 		char window_title[4096];
-		sprintf_s(window_title, sizeof(window_title), "Sargent Renderer: dt:%.2f, Tris:%u", dt, temp__index_count / 3 + temp__index_count_2 / 3);
+		sprintf_s(window_title, sizeof(window_title), "Sargent Renderer: dt:%.2fms, Tris:%llu, %.3fM:tris/s", smooth_dt*100, triangle_count, f64(triangle_count)/smooth_dt/1000000);
 		SetWindowTextA(window, window_title);
 	}
 }
