@@ -1,6 +1,6 @@
 @echo off
 
-set CommonFlags=-Z7 -FeDx12_Renderer.exe
+set CommonFlags=-Z7 -FeDx12_Renderer.exe -EHsc -D_DEBUG
 
 set OptimizationLevel=-Od
 

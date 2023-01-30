@@ -11,54 +11,10 @@ typedef int64_t s64;
 typedef float f32;
 typedef double f64;
 
-struct vec3 {
-	union {
-		struct {
-			f32 x;
-			f32 y;
-			f32 z;
-		};
-		struct {
-			f32 data[3];
-		};
-	};
-
-};
-
-struct vec4 {
-	union {
-		struct {
-			f32 x;
-			f32 y;
-			f32 z;
-			f32 w;
-		};
-		struct {
-			f32 data[4];
-		};
-	};
-};
-
-#include <math.h>
-f32 length(vec4 v) {
-	return sqrt(v.x*v.x + v.y*v.y + v.z*v.z);
-};
-
-vec4 normalize(vec4 v) {
-	vec4 result = v;
-	f32 len = length(v);
-	result.x /= len;
-	result.y /= len;
-	result.z /= len;
-	result.w /= len;
-	return result;
-};
-
+#include "SargentMath.h"
 
 static u32 window_width = 1920;
 static u32 window_height = 1080;
-
-#define _DEBUG
 
 #define WIN32_LEAN_AND_MEAN
 #define VC_EXTRALEAN
@@ -120,15 +76,11 @@ bool _must_succeed(HRESULT result) {
 	return true;
 }
 
-#define REPORT_ERROR(message) do {MessageBoxEx(0, message, "Apollo Engine Error!", 0, 0); ExitProcess(1);} while(0);
+#define REPORT_ERROR(message) do { char __message_buffer[4096*2]; snprintf(__message_buffer, sizeof(__message_buffer), "l:%d: %s", __LINE__, message); MessageBoxEx(0, __message_buffer, "Sargent Renderer Error!", 0, 0); ExitProcess(1); } while (0);
 #define MUST_SUCCEED(result) assert(_must_succeed(result))
 
 
 static constexpr u32 back_buffer_count = 2;
-
-
-u32 temp__index_count = 0;
-u32 temp__index_count_2 = 0;
 
 
 u64 triangle_count = 0;
@@ -159,23 +111,11 @@ f32 rand_f32_in_range(f32 bottom_inclusive, f32 top_inclusive, u32 *rng)
 }
 
 
+ID3D12Device* device;
+
+
 ID3D12DescriptorHeap* vertex_buffer_heap;
-ID3D12Resource* vertex_buffer_resource;
 
-
-
-
-
-ID3D12Resource* index_buffer;
-D3D12_INDEX_BUFFER_VIEW index_buffer_view;
-
-
-ID3D12Resource* index_buffer_2;
-D3D12_INDEX_BUFFER_VIEW index_buffer_view_2;
-
-ID3D12Resource* constant_buffers[back_buffer_count];
-ID3D12DescriptorHeap* constant_buffer_heaps[back_buffer_count];
-u8* mapped_constant_buffer;
 ID3D12CommandAllocator* command_allocator;
 ID3D12GraphicsCommandList* command_list = 0;
 ID3D12PipelineState* pipeline_state = 0;
@@ -199,13 +139,137 @@ struct alignas(16) DrawInfo
 	u32 vertex_buffer_index;
 	vec3 position;
 	vec4 quat;
-	f32 time;
 };
 
 struct alignas(16) ShaderGlobals
 {
+	Mat4x4 projection;
+	Mat4x4 view;
 	float time;
 };
+
+struct Buffer
+{
+	size_t size_in_bytes;
+	ID3D12Resource* resource;
+};
+
+
+Buffer vertex_buffer_1;
+Buffer vertex_buffer_2;
+
+Buffer constant_buffer;
+
+
+Buffer create_buffer(size_t size_in_bytes)
+{
+	Buffer result = {};
+
+	result.size_in_bytes = size_in_bytes;
+
+	D3D12_HEAP_PROPERTIES heap_properties = {};
+	heap_properties.Type = D3D12_HEAP_TYPE_UPLOAD;
+	heap_properties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+	heap_properties.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+	heap_properties.CreationNodeMask = 1;
+	heap_properties.VisibleNodeMask = 1;
+
+	D3D12_RESOURCE_DESC resource_description = {};
+	resource_description.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	resource_description.Alignment = 0;
+	resource_description.Width = size_in_bytes;
+	resource_description.Height = 1;
+	resource_description.DepthOrArraySize = 1;
+	resource_description.MipLevels = 1;
+	resource_description.Format = DXGI_FORMAT_UNKNOWN;
+	resource_description.SampleDesc.Count = 1;
+	resource_description.SampleDesc.Quality = 0;
+	resource_description.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+	resource_description.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+	MUST_SUCCEED(device->CreateCommittedResource(&heap_properties, D3D12_HEAP_FLAG_NONE, &resource_description, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&result.resource)));
+
+	return result;
+}
+
+void upload_to_buffer(Buffer* buffer, void* data, size_t data_size_in_bytes)
+{
+	D3D12_RANGE read_range = {};
+	void* upload_destination = 0;
+
+	assert(buffer->size_in_bytes >= data_size_in_bytes);
+
+	MUST_SUCCEED(buffer->resource->Map(0, &read_range, (void**)&upload_destination));
+	memcpy(upload_destination, data, data_size_in_bytes);
+	buffer->resource->Unmap(0, nullptr);
+}
+
+
+struct Vertex
+{
+	f32 position[3];
+	f32 normal [3];
+};
+
+
+struct Mesh
+{
+	u32 index_count;
+	Buffer index_buffer;//We may not need to keep this around (We only use the index_buffer_view when rendering right now.)
+	D3D12_INDEX_BUFFER_VIEW index_buffer_view;
+
+	u32 vertex_count;
+	Buffer vertex_buffer;
+};
+
+
+Mesh meshes[4096];
+u32 mesh_count;
+
+Mesh load_obj(char* filename)
+{
+	Mesh result = {};
+
+	ParsedOBJ obj = LoadOBJ(filename);
+	assert(obj.renderable_count == 1);
+	ParsedOBJRenderable renderable = obj.renderables[0];
+	//Vertex* vertex_buffer_data = (Vertex*)renderable.vertices;
+	Vertex* vertex_buffer_data = new Vertex[renderable.vertex_count];
+
+	for (u32 i = 0; i < renderable.vertex_count; i++)
+	{
+		vertex_buffer_data[i].position[0] = renderable.vertices[i*8+0];
+		vertex_buffer_data[i].position[1] = renderable.vertices[i*8+1];
+		vertex_buffer_data[i].position[2] = renderable.vertices[i*8+2];
+
+		vertex_buffer_data[i].normal[0] = renderable.vertices[i*8+3+2];
+		vertex_buffer_data[i].normal[1] = renderable.vertices[i*8+4+2];
+		vertex_buffer_data[i].normal[2] = renderable.vertices[i*8+5+2];
+	}
+	u32 vertex_buffer_size = sizeof(Vertex) * renderable.vertex_count;
+
+	result.vertex_buffer = create_buffer(sizeof(Vertex)*renderable.vertex_count);
+	result.vertex_count = renderable.vertex_count;
+	upload_to_buffer(&result.vertex_buffer, vertex_buffer_data, vertex_buffer_size);
+
+	result.index_count = renderable.index_count;
+	u32* index_buffer_data = (u32*)renderable.indices;
+	u32 index_buffer_size = sizeof(u32) * renderable.index_count;
+
+
+	result.index_buffer = create_buffer(index_buffer_size);
+
+	upload_to_buffer(&result.index_buffer, index_buffer_data, index_buffer_size);
+
+	result.index_buffer_view.BufferLocation = result.index_buffer.resource->GetGPUVirtualAddress();
+	result.index_buffer_view.Format = DXGI_FORMAT_R32_UINT;
+	result.index_buffer_view.SizeInBytes = index_buffer_size;
+
+	delete [] vertex_buffer_data;
+	FreeParsedOBJ(&obj);
+
+	return result;
+}
 
 
 void init_directx12(HWND window)
@@ -257,7 +321,6 @@ void init_directx12(HWND window)
 	}
 	
 	
-	ID3D12Device* device;
 	
 	MUST_SUCCEED(D3D12CreateDevice(adapter, DX_FEATURE_LEVEL, IID_PPV_ARGS(&device)));
 	
@@ -361,6 +424,11 @@ void init_directx12(HWND window)
 	if(device->CheckFeatureSupport(D3D12_FEATURE_ROOT_SIGNATURE, &feature_data, sizeof(feature_data)) != S_OK)
 		feature_data.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
 	
+
+	//Check support for mesh shaders
+	D3D12_FEATURE_DATA_D3D12_OPTIONS7 feature_data_2;
+	device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS7, &feature_data_2, sizeof(feature_data_2));
+	printf("Mesh shaders are%s supported.\n", feature_data_2.MeshShaderTier == D3D12_MESH_SHADER_TIER_NOT_SUPPORTED ? " not" : "");
 	
 	D3D12_DESCRIPTOR_RANGE1 ranges[1];
 	ranges[0].RegisterSpace = 0;
@@ -371,10 +439,9 @@ void init_directx12(HWND window)
 	ranges[0].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE;
 
 
-	D3D12_ROOT_PARAMETER1 root_parameters[2];
+	D3D12_ROOT_PARAMETER1 root_parameters[3];
 	root_parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	root_parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-	
 	root_parameters[0].DescriptorTable.NumDescriptorRanges = sizeof(ranges) / sizeof(D3D12_DESCRIPTOR_RANGE1);
 	root_parameters[0].DescriptorTable.pDescriptorRanges = ranges;
 
@@ -384,60 +451,14 @@ void init_directx12(HWND window)
 	root_parameters[1].Constants.RegisterSpace  = 0;
 	root_parameters[1].Constants.Num32BitValues = (sizeof(DrawInfo) + 3) / 4;
 
-	for (int i = 0; i < back_buffer_count; ++i) {
-		D3D12_DESCRIPTOR_HEAP_DESC heap_desc = {};
-		heap_desc.NumDescriptors = 1;
-		heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-		heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-		MUST_SUCCEED(device->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(&constant_buffer_heaps[i])));
-	}
+	
+	root_parameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+	root_parameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+	root_parameters[2].Constants.ShaderRegister = 1;
+	root_parameters[2].Constants.RegisterSpace  = 0;
+	root_parameters[2].Constants.Num32BitValues = (sizeof(ShaderGlobals) + 3) / 4;
+	
 
-
-	for (int i = 0; i < back_buffer_count; ++i) {
-		D3D12_HEAP_PROPERTIES heap_properties;
-		heap_properties.Type = D3D12_HEAP_TYPE_UPLOAD;
-		heap_properties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-		heap_properties.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-		heap_properties.CreationNodeMask = 1;
-		heap_properties.VisibleNodeMask = 1;
-
-		D3D12_RESOURCE_DESC resource_desc;
-		resource_desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-		resource_desc.Alignment = 0;
-		resource_desc.Width = 1024 * 64;
-		resource_desc.Height = 1;
-		resource_desc.DepthOrArraySize = 1;
-		resource_desc.MipLevels = 1;
-		resource_desc.Format = DXGI_FORMAT_UNKNOWN;
-		resource_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
-		resource_desc.SampleDesc.Count = 1;
-		resource_desc.SampleDesc.Quality = 0;
-		resource_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-
-
-		MUST_SUCCEED(device->CreateCommittedResource(&heap_properties,
-													 D3D12_HEAP_FLAG_NONE,
-													 &resource_desc,
-													 D3D12_RESOURCE_STATE_GENERIC_READ,
-													 nullptr,
-													 IID_PPV_ARGS(&constant_buffers[i])));
-
-
-		
-		D3D12_CONSTANT_BUFFER_VIEW_DESC constant_buffer_view_desc = {};
-		constant_buffer_view_desc.BufferLocation = constant_buffers[i]->GetGPUVirtualAddress();
-		constant_buffer_view_desc.SizeInBytes = (sizeof(f32) + 255) & ~255;	// CB size is required to be 256-byte aligned.
-		device->CreateConstantBufferView(&constant_buffer_view_desc, constant_buffer_heaps[i]->GetCPUDescriptorHandleForHeapStart());
-
-
-		D3D12_RANGE read_range = {};
-
-		f32 time = .5f;
-		f32* time_data = 0;
-		MUST_SUCCEED(constant_buffers[i]->Map(0, &read_range, (void**)&time_data));
-		memcpy(time_data, &time, sizeof(time));
-		constant_buffers[i]->Unmap(0, nullptr);
-	}
 
 	
 	
@@ -459,7 +480,7 @@ void init_directx12(HWND window)
 	if(D3D12SerializeVersionedRootSignature(&root_signature_description, &signature, &error) != S_OK)
 	{
 		char* error_string = (char*)error->GetBufferPointer();
-		REPORT_ERROR(error_string);
+			REPORT_ERROR(error_string);
 		error->Release();
 		error = 0;
 	}
@@ -477,93 +498,13 @@ void init_directx12(HWND window)
 		signature = 0;
 	}
 	
-	struct Vertex
-	{
-		f32 position[3];
-		f32 normal [3];
-	};
-
-
-	ParsedOBJ obj = LoadOBJ("bunny.obj");
-	assert(obj.renderable_count == 1);
-	ParsedOBJRenderable renderable = obj.renderables[0];
-	//Vertex* vertex_buffer_data = (Vertex*)renderable.vertices;
-	Vertex* vertex_buffer_data = new Vertex[renderable.vertex_count];
-
-	for (u32 i = 0; i < renderable.vertex_count; i++)
-	{
-		vertex_buffer_data[i].position[0] = renderable.vertices[i*8+0];
-		vertex_buffer_data[i].position[1] = renderable.vertices[i*8+1];
-		vertex_buffer_data[i].position[2] = renderable.vertices[i*8+2];
-
-		vertex_buffer_data[i].normal[0] = renderable.vertices[i*8+3+2];
-		vertex_buffer_data[i].normal[1] = renderable.vertices[i*8+4+2];
-		vertex_buffer_data[i].normal[2] = renderable.vertices[i*8+5+2];
-	}
-	u32 vertex_buffer_size = sizeof(Vertex) * renderable.vertex_count;
-
-
-	//TODO(Andrew): Something breaks when we use buddhas here??
-	ParsedOBJ obj_2 = LoadOBJ("Apollo_Statue.obj");
-	assert(obj_2.renderable_count == 1);
-	ParsedOBJRenderable renderable_2 = obj_2.renderables[0];
-	Vertex* vertex_buffer_data_2 = new Vertex[renderable_2.vertex_count];
-
-	for (u32 i = 0; i < renderable_2.vertex_count; i++)
-	{
-		vertex_buffer_data_2[i].position[0] = renderable_2.vertices[i*8+0];
-		vertex_buffer_data_2[i].position[1] = renderable_2.vertices[i*8+1];
-		vertex_buffer_data_2[i].position[2] = renderable_2.vertices[i*8+2];
-						  
-		vertex_buffer_data_2[i].normal[0] = renderable_2.vertices[i*8+3+2];
-		vertex_buffer_data_2[i].normal[1] = renderable_2.vertices[i*8+4+2];
-		vertex_buffer_data_2[i].normal[2] = renderable_2.vertices[i*8+5+2];
-	}
-	u32 vertex_buffer_size_2 = sizeof(Vertex) * renderable_2.vertex_count;
-
-
-
-	//TODO(Andrew): Vertex Buffer SRV here.
-	{
-		D3D12_HEAP_PROPERTIES heap_properties = {};
-		heap_properties.Type = D3D12_HEAP_TYPE_UPLOAD;
-		heap_properties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-		heap_properties.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-		heap_properties.CreationNodeMask = 1;
-		heap_properties.VisibleNodeMask = 1;
-
-		D3D12_RESOURCE_DESC resource_description = {};
-		resource_description.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-		resource_description.Alignment = 0;
-		resource_description.Width = sizeof(Vertex)*renderable.vertex_count;
-		resource_description.Height = 1;
-		resource_description.DepthOrArraySize = 1;
-		resource_description.MipLevels = 1;
-		resource_description.Format = DXGI_FORMAT_UNKNOWN;
-		resource_description.SampleDesc.Count = 1;
-		resource_description.SampleDesc.Quality = 0;
-		resource_description.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-		resource_description.Flags = D3D12_RESOURCE_FLAG_NONE;
-
-		MUST_SUCCEED(device->CreateCommittedResource(&heap_properties, D3D12_HEAP_FLAG_NONE, &resource_description, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&vertex_buffer_resource)));
-
-		Vertex* vertex_buffer_data_begin = 0;
-		D3D12_RANGE read_range = {};
-		MUST_SUCCEED(vertex_buffer_resource->Map(0, &read_range, (void**)&vertex_buffer_data_begin));
-		memcpy(vertex_buffer_data_begin, vertex_buffer_data, vertex_buffer_size);
-		vertex_buffer_resource->Unmap(0, nullptr);
-
-		ID3D12Resource* vb_r = 0;
-		resource_description.Width = sizeof(Vertex)*renderable_2.vertex_count;
-		MUST_SUCCEED(device->CreateCommittedResource(&heap_properties, D3D12_HEAP_FLAG_NONE, &resource_description, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&vb_r)));
+	meshes[mesh_count++] = load_obj("bunny.obj");
+	meshes[mesh_count++] = load_obj("Apollo_Statue.obj");
 	
-		MUST_SUCCEED(vb_r->Map(0, &read_range, (void**)&vertex_buffer_data_begin));
-		memcpy(vertex_buffer_data_begin, vertex_buffer_data_2, vertex_buffer_size_2);
-		vb_r->Unmap(0, nullptr);
-	
-
+	// Vertex Buffer SRV here.
+	{
 		D3D12_DESCRIPTOR_HEAP_DESC heap_desc = {};
-		heap_desc.NumDescriptors = 2;
+		heap_desc.NumDescriptors = mesh_count;
 		heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 		
@@ -574,77 +515,39 @@ void init_directx12(HWND window)
 		vertex_srv_description.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
 		vertex_srv_description.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 		vertex_srv_description.Buffer.FirstElement = 0;
-		vertex_srv_description.Buffer.NumElements = renderable.vertex_count;
+		vertex_srv_description.Buffer.NumElements = 0;
 		vertex_srv_description.Buffer.StructureByteStride = sizeof(Vertex);
 
 
 		D3D12_CPU_DESCRIPTOR_HANDLE handle = vertex_buffer_heap->GetCPUDescriptorHandleForHeapStart();
-		device->CreateShaderResourceView(vertex_buffer_resource, &vertex_srv_description, handle);
 
-
-		handle.ptr += device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-		vertex_srv_description.Buffer.NumElements = renderable_2.vertex_count;
-		device->CreateShaderResourceView(vb_r, &vertex_srv_description, handle);
+		//for (Mesh& mesh : meshes)
+		for(int i = 0; i < mesh_count; ++i)
+		{
+			Mesh& mesh = meshes[i];
+			vertex_srv_description.Buffer.NumElements = mesh.vertex_count;
+			device->CreateShaderResourceView(mesh.vertex_buffer.resource, &vertex_srv_description, handle);
+			handle.ptr += device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		}
 	}
 
 
+#if 0
+	constant_buffer = create_buffer(1024*1024);
+	{
+		D3D12_DESCRIPTOR_HEAP_DESC heap_desc = {};
+		heap_desc.NumDescriptors = 1;
+		heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
-	u32* index_buffer_data = (u32*)renderable.indices;
-	u32 index_buffer_size = sizeof(u32) * renderable.index_count;
-	temp__index_count = renderable.index_count;
+		MUST_SUCCEED(device->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(&constant_buffer_heap)));
 
-	D3D12_HEAP_PROPERTIES index_heap_properties;
-	index_heap_properties.Type = D3D12_HEAP_TYPE_UPLOAD;
-	index_heap_properties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-	index_heap_properties.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-	index_heap_properties.CreationNodeMask = 1;
-	index_heap_properties.VisibleNodeMask = 1;
-
-	D3D12_RESOURCE_DESC index_buffer_resource_description;
-	index_buffer_resource_description.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-	index_buffer_resource_description.Alignment = 0;
-	index_buffer_resource_description.Width = index_buffer_size;
-	index_buffer_resource_description.Height = 1;
-	index_buffer_resource_description.DepthOrArraySize = 1;
-	index_buffer_resource_description.MipLevels = 1;
-	index_buffer_resource_description.Format = DXGI_FORMAT_UNKNOWN;
-	index_buffer_resource_description.SampleDesc.Count = 1;
-	index_buffer_resource_description.SampleDesc.Quality = 0;
-	index_buffer_resource_description.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-	index_buffer_resource_description.Flags = D3D12_RESOURCE_FLAG_NONE;
-
-	MUST_SUCCEED(device->CreateCommittedResource(&index_heap_properties, D3D12_HEAP_FLAG_NONE, &index_buffer_resource_description, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&index_buffer)));
-	u8* index_buffer_data_begin = 0;
-
-	D3D12_RANGE read_range = {};
-	MUST_SUCCEED(index_buffer->Map(0, &read_range, (void**)&index_buffer_data_begin));
-	memcpy(index_buffer_data_begin, index_buffer_data, index_buffer_size);
-	index_buffer->Unmap(0, nullptr);
-	
-	
-	u32* index_buffer_data_2 = (u32*)renderable_2.indices;
-	u32 index_buffer_size_2 = sizeof(u32) * renderable_2.index_count;
-	temp__index_count_2 = renderable_2.index_count;
-
-	index_buffer_resource_description.Width = index_buffer_size_2;
-	MUST_SUCCEED(device->CreateCommittedResource(&index_heap_properties, D3D12_HEAP_FLAG_NONE, &index_buffer_resource_description, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&index_buffer_2)));
-
-	MUST_SUCCEED(index_buffer_2->Map(0, &read_range, (void**)&index_buffer_data_begin));
-	memcpy(index_buffer_data_begin, index_buffer_data_2, index_buffer_size_2);
-	index_buffer_2->Unmap(0, nullptr);
-
-
-	FreeParsedOBJ(&obj_2);
-	FreeParsedOBJ(&obj);
-
-
-	index_buffer_view.BufferLocation = index_buffer->GetGPUVirtualAddress();
-	index_buffer_view.Format = DXGI_FORMAT_R32_UINT;
-	index_buffer_view.SizeInBytes = index_buffer_size;
-	
-	index_buffer_view_2.BufferLocation = index_buffer_2->GetGPUVirtualAddress();
-	index_buffer_view_2.Format = DXGI_FORMAT_R32_UINT;
-	index_buffer_view_2.SizeInBytes = index_buffer_size_2;
+		D3D12_CONSTANT_BUFFER_VIEW_DESC constant_buffer_view_desc = {};
+		constant_buffer_view_desc.BufferLocation = constant_buffer.resource->GetGPUVirtualAddress();
+		constant_buffer_view_desc.SizeInBytes = (sizeof(ShaderGlobals) + 255) & ~255;	// CB size is required to be 256-byte aligned.
+		device->CreateConstantBufferView(&constant_buffer_view_desc, constant_buffer_heap->GetCPUDescriptorHandleForHeapStart());
+	}
+#endif
 
 	D3D12_SHADER_BYTECODE vertex_shader_byte_code;
 	D3D12_SHADER_BYTECODE pixel_shader_byte_code;
@@ -842,11 +745,6 @@ void draw(f64 dt)
 	command_list->SetDescriptorHeaps(_countof(descriptor_heaps), descriptor_heaps);
 	command_list->SetGraphicsRootDescriptorTable(0, vertex_buffer_heap->GetGPUDescriptorHandleForHeapStart());
 
-	//descriptor_heaps = { constant_buffer_heaps[frame_index] };
-	//command_list->SetDescriptorHeaps(_countof(descriptor_heaps), descriptor_heaps);
-	//command_list->SetGraphicsRootDescriptorTable(0, constant_buffer_heaps[frame_index]->GetGPUDescriptorHandleForHeapStart());
-
-
 	render_target_view_handle = {render_target_view_heap->GetCPUDescriptorHandleForHeapStart()};
    
 	render_target_view_handle.ptr += frame_index * render_target_view_descriptor_size;
@@ -859,7 +757,6 @@ void draw(f64 dt)
 	command_list->RSSetScissorRects(1, &surface_rect);
 	command_list->ClearRenderTargetView(render_target_view_handle, clear_colour, 0, nullptr);
 	command_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	//command_list->IASetVertexBuffers(0, 1, &vertex_buffer_view);
 
 
 	static f64 time = 0.0f;
@@ -870,9 +767,24 @@ void draw(f64 dt)
 
 	u32 draw_count = 250;
 	
-	//ShaderGlobals shader_globals = {};
-	//shader_globals.time = time;
-	//command_list->SetGraphicsRoot32BitConstants(2, (sizeof(ShaderGlobals) + 3) / 4, &shader_globals, 0);
+
+	ShaderGlobals global_data = {};
+
+	f32 fov = 70.0 * 3.14159265 / 180.0;
+	f32 e = 1.0 / tanf(fov * 0.5f);
+	f32 a = f32(window_width) / f32(window_height);
+	f32 n = 0.01f;
+
+	global_data.projection = perspective_infinite(70.0f, 0.01f, (f32)window_width, (f32)window_height);
+
+	
+	global_data.view = { 1.0f, 0.0f, 0.0f, 0.0f,
+						 0.0f, 1.0f, 0.0f, 0.0f,
+						 0.0f, 0.0f, 1.0f, 0.0f,
+						 0.0f, 0.0f, 0.0f, 1.0f};
+	global_data.time = (f32)time;
+
+	command_list->SetGraphicsRoot32BitConstants(2, (sizeof(global_data) + 3) / 4, &global_data, 0);
 
 	srand(101);
 
@@ -881,26 +793,23 @@ void draw(f64 dt)
 	f32 p_range = 5.0f;
 	for (u32 i = 0; i < draw_count; ++i)
 	{	
-		u32 mesh_index = rand() % 2;
-		//mesh_index = 0;
-
-		auto index_view = mesh_index == 0 ? &index_buffer_view : &index_buffer_view_2;
-		command_list->IASetIndexBuffer(index_view);
+		u32 mesh_index = rand() % mesh_count;
+		Mesh& mesh = meshes[mesh_index];
+		command_list->IASetIndexBuffer(&mesh.index_buffer_view);
 		DrawInfo draw_info = {};
 		draw_info.position = { rand_f32_in_range(-p_range, p_range, &rng), rand_f32_in_range(-p_range, p_range, &rng), -10.0f + rand_f32_in_range(-p_range, p_range, &rng) };
 		draw_info.quat = { rand_f32_in_range(-1.0, 1.0, &rng), rand_f32_in_range(-1.0, 1.0, &rng), rand_f32_in_range(-1.0, 1.0, &rng), rand_f32_in_range(-1.0, 1.0, &rng) };
 		draw_info.quat = normalize(draw_info.quat);
 		//draw_info.quat = { 0.0f, 0.0f, 0.0f, 1.0f };
+
 		draw_info.position.z += 2.5f;
 		draw_info.vertex_buffer_index = mesh_index;
-		draw_info.time = (f32)time;
 
 		command_list->SetGraphicsRoot32BitConstants(1, (sizeof(DrawInfo) + 3) / 4, &draw_info, 0);
 
-		u32 num_indices = mesh_index == 0 ? temp__index_count : temp__index_count_2;
-		command_list->DrawIndexedInstanced(num_indices, 1, 0, 0, 0);
+		command_list->DrawIndexedInstanced(mesh.index_count, 1, 0, 0, 0);
 
-		triangle_count += num_indices / 3;
+		triangle_count += mesh.index_count / 3;
 	}
 
 	D3D12_RESOURCE_BARRIER present_barrier;
