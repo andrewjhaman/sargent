@@ -686,6 +686,7 @@ void init_directx12(HWND window)
 	
 	D3D12_RASTERIZER_DESC rasterizer_description;
 	rasterizer_description.FillMode = D3D12_FILL_MODE_SOLID;
+	//rasterizer_description.CullMode = D3D12_CULL_MODE_NONE;
 	rasterizer_description.CullMode = D3D12_CULL_MODE_BACK;
 	rasterizer_description.FrontCounterClockwise = TRUE;
 	rasterizer_description.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
@@ -812,16 +813,17 @@ void draw()
 	rng = 1337;
 	advance_rng((&rng));
 
-	u32 draw_count = 500;
+	u32 draw_count = 50;
 	
-	f32 p_range = 10.0f;
+	f32 p_range = 5.0f;
 
 	for (u32 i = 0; i < draw_count; ++i)
 	{		
 		DrawInfo draw_info = {};
-		draw_info.position = { rand_f32_in_range(-p_range, p_range, &rng), rand_f32_in_range(-p_range, p_range, &rng), rand_f32_in_range(-p_range, p_range, &rng) };
+		draw_info.position = { rand_f32_in_range(-p_range, p_range, &rng), rand_f32_in_range(-p_range, p_range, &rng), -10.0f + rand_f32_in_range(-p_range, p_range, &rng) };
 		draw_info.quat = { rand_f32_in_range(-1.0, 1.0, &rng), rand_f32_in_range(-1.0, 1.0, &rng), rand_f32_in_range(-1.0, 1.0, &rng), rand_f32_in_range(-1.0, 1.0, &rng) };
 		draw_info.quat = normalize(draw_info.quat);
+		//draw_info.quat = { 0.0f, 0.0f, 0.0f, 1.0f };
 		draw_info.position.z += 2.5f;
 		draw_info.vertex_buffer_index = 0;
 
