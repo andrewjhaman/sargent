@@ -17,12 +17,13 @@ struct DrawInfo
 	uint vertex_buffer_index;
 	float3 position;
 	float4 quat;
-};
-
-struct Globals
-{
 	float time;
 };
+
+//struct Globals
+//{
+//	float time;
+//};
 
 cbuffer PerDrawBindings : register(b0, space0)
 {
@@ -40,6 +41,17 @@ float3 rotate_vec_by_quat(float3 v, float4 q)
 {
 	return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v);
 }
+// Quaternion multiplication
+// http://mathworld.wolfram.com/Quaternion.html
+float4 qmul(float4 q1, float4 q2)
+{
+	return float4(
+		q2.xyz * q1.w + q1.xyz * q2.w + cross(q1.xyz, q2.xyz),
+		q1.w * q2.w - dot(q1.xyz, q2.xyz)
+	);
+}
+
+
 
 
 struct Vertex
@@ -63,11 +75,15 @@ VertexOutput main(uint vertex_id : SV_VertexID)
 	float3 in_pos = vertex.position;
 	float3 in_colour = vertex.normal;
 
-	
-	//float4 quat = { 0, 1.0, 0, cos(globals.time / 2) };
-	
 
-	in_pos = rotate_vec_by_quat(in_pos, draw_info.quat);
+	float4 quat = { 0.0, 1.0, 0.0, cos(draw_info.time / 2) };
+	quat = normalize(quat);
+
+	quat = qmul(draw_info.quat, quat);
+	quat = normalize(quat);
+
+	in_pos = rotate_vec_by_quat(in_pos, quat);
+	//in_pos = rotate_vec_by_quat(in_pos, draw_info.quat);
 	in_pos += draw_info.position;
 	in_pos.z -= 2.5;
 
