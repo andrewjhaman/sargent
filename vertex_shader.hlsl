@@ -83,9 +83,8 @@ VertexOutput main(uint vertex_id : SV_VertexID)
 	quat = normalize(quat);
 
 	in_pos = rotate_vec_by_quat(in_pos, quat);
-	//in_pos = rotate_vec_by_quat(in_pos, draw_info.quat);
 	in_pos += draw_info.position;
-	in_pos.z -= 2.5;
+	//in_pos.z += 20.5;
 
 	float fov = 70.0 * 3.14158 / 180.0;
 	float e = 1 / tan(fov * 0.5);

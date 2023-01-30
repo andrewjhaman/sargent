@@ -1169,6 +1169,44 @@ void game_render() {
 #endif
 
 
+WINDOWPLACEMENT previous_window_placement = {};
+void win32_toggle_fullscreen(HWND window)
+{
+	constexpr bool allow_fullscreen_optimisations = true;
+    
+	DWORD style = GetWindowLong(window, GWL_STYLE);
+	if (style & WS_OVERLAPPEDWINDOW)
+	{
+		MONITORINFO monitorInfo = {sizeof(monitorInfo)};
+		if(GetWindowPlacement(window, &previous_window_placement) &&
+			GetMonitorInfo(MonitorFromWindow(window, MONITOR_DEFAULTTOPRIMARY), &monitorInfo))
+		{
+            
+			//We set the style this way in order to make sure Fullscreen Optimisations get enabled. 
+			//style = 0x96000000;
+			if(allow_fullscreen_optimisations)
+				style = WS_VISIBLE | WS_POPUP;
+			else
+				style = WS_VISIBLE;
+			SetWindowLong(window, GWL_STYLE, style);
+            
+			SetWindowPos(window, HWND_NOTOPMOST,
+			             monitorInfo.rcMonitor.left, monitorInfo.rcMonitor.top,
+			             monitorInfo.rcMonitor.right - monitorInfo.rcMonitor.left,
+			             monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top,
+			             SWP_SHOWWINDOW);
+		}
+	}
+	else
+	{
+		SetWindowLong(window, GWL_STYLE, style | WS_OVERLAPPEDWINDOW | WS_POPUP);
+		SetWindowPlacement(window, &previous_window_placement);
+		SetWindowPos(window, NULL, 0, 0, 0, 0,
+		             SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_NOCOPYBITS);
+	}
+}
+
+
 int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdArgs, int intCmdShow)
 {
 #if 1
@@ -1201,12 +1239,20 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdArgs,
 	RegisterClassEx(&window_class);
 	//if(!RegisterClassEx(&window_class))
 	//REPORT_ERROR("Call to RegisterClassEx Failed!");
+	SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
+	RECT work_area;
+	SystemParametersInfo(SPI_GETWORKAREA, 0, &work_area, 0);
+    
+   
+
+	window_width = work_area.right - work_area.left;
+	window_height = work_area.bottom - work_area.top;
 	
 	HWND window = CreateWindowEx(0, window_class_name, window_title, WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, window_width, window_height, 0, 0, hInstance, 0);
 	//if(!window)
 	//REPORT_ERROR("Call to CreateWindowEx Failed!");
 	
-	SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 	
 	init_directx12(window);
 
@@ -1251,6 +1297,8 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdArgs,
 				{
 					if (message.wParam == VK_ESCAPE)
 						should_quit = true;
+					if (message.wParam == VK_F11)
+						win32_toggle_fullscreen(window);
 				}break;
 				case WM_CLOSE:
 				case WM_DESTROY:
