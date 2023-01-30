@@ -1,0 +1,12 @@
+{
+  "version": "0.2.1",
+  "defaults": {},
+  "configurations": [
+    {
+      "type": "native",
+      "name": "dx_window.exe",
+      "project": "dx_window.exe",
+      "projectTarget": ""
+    }
+  ]
+}

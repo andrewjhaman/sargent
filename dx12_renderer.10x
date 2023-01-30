@@ -7,15 +7,15 @@
 		<Recursive>true</Recursive>
 		<IsVirtual>false</IsVirtual>
 		<IsFolder>false</IsFolder>
-		<BuildCommand>cl.exe dx_window.cpp -Od -Z7</BuildCommand>
-		<RebuildCommand>cl.exe dx_window.cpp -Od -Z7</RebuildCommand>
+		<BuildCommand>build.bat $(Configuration)</BuildCommand>
+		<RebuildCommand>build.bat $(Configuration)</RebuildCommand>
 		<BuildFileCommand></BuildFileCommand>
 		<CleanCommand></CleanCommand>
 		<BuildWorkingDirectory></BuildWorkingDirectory>
-		<RunCommand>dx_window.exe</RunCommand>
-		<DebugCommand>dx_window.exe</DebugCommand>
+		<RunCommand></RunCommand>
+		<DebugCommand></DebugCommand>
 		<ExePathCommand>dx_window.exe</ExePathCommand>
-		<DebugSln></DebugSln>
+		<DebugSln>dx12_renderer.sln</DebugSln>
 		<UseVisualStudioEnvBat>true</UseVisualStudioEnvBat>
 		<Configurations>
 			<Configuration>Debug</Configuration>

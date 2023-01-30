@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{FA982243-044F-4EC3-80C5-5D99F51C8F92}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LinkIncremental>true</LinkIncremental>
+    <OutDir>$(SolutionDir)</OutDir>
+    <TargetName>Dx12_Renderer</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>true</LinkIncremental>
+    <OutDir>$(SolutionDir)</OutDir>
+    <TargetName>Dx12_Renderer</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <OutDir>$(SolutionDir)</OutDir>
+    <TargetName>Dx12_Renderer</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(SolutionDir)</OutDir>
+    <TargetName>Dx12_Renderer</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>DirectXShaderCompiler/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <Optimization>Disabled</Optimization>
+    </ClCompile>
+    <Link>
+      <TargetMachine>MachineX86</TargetMachine>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <SubSystem>Windows</SubSystem>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>DirectXShaderCompiler/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+    </ClCompile>
+    <Link>
+      <TargetMachine>MachineX86</TargetMachine>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="dx_window.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxcapi.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxcapi.internal.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxcbindingtable\DxcBindingTable.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxcdxrfallbackcompiler.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxcerrors.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxcisense.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxcpix.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxctools.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilcompression\DxilCompression.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilcompression\DxilCompressionHelpers.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilcontainer\DxcContainerBuilder.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilcontainer\DxilContainer.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilcontainer\DxilContainerAssembler.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilcontainer\DxilContainerReader.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilcontainer\DxilPipelineStateValidation.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilcontainer\DxilRDATBuilder.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilcontainer\DxilRDATParts.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilcontainer\DxilRuntimeReflection.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilpdbinfo\DxilPdbInfoWriter.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilpixpasses\DxilPIXPasses.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilpixpasses\DxilPIXVirtualRegisters.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilrootsignature\DxilRootSignature.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DXIL.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilCBuffer.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilCompType.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilConstants.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilCounters.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilEntryProps.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilFunctionProps.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilInstructions.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilInterpolationMode.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilMetadataHelper.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilModule.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilOperations.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilPDB.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilResource.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilResourceBase.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilResourceBinding.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilResourceProperties.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilSampler.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilSemantic.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilShaderFlags.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilShaderModel.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilSignature.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilSignatureElement.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilSigPoint.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilSubobject.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilTypeSystem.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilUtil.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\dxrfallback\DxrFallbackCompiler.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\HlslIntrinsicOp.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\ComputeViewIdState.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\ControlDependence.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\DxilConvergentName.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\DxilExportMap.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\DxilFallbackLayerPass.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\DxilGenerationPass.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\DxilLinker.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\DxilNoops.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\DxilPackSignatureElement.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\DxilPoisonValues.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\DxilSignatureAllocator.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\DxilSpanAllocator.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\DxilValidation.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\HLLowerUDT.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\HLMatrixLowerHelper.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\HLMatrixLowerPass.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\HLMatrixType.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\HLModule.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\HLOperationLower.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\HLOperationLowerExtension.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\HLOperations.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\HLResource.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\HLSLExtensionsCodegenHelper.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\HLUtil.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\support\d3d12TokenizedProgramFormat.hpp" />
+    <ClInclude Include="directxshadercompiler\include\dxc\support\D3DReflection.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\support\d3dx12.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\support\dxcapi.impl.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\support\dxcapi.use.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\support\dxcfilesystem.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\support\DxcLangExtensionsCommonHelper.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\support\DxcLangExtensionsHelper.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\support\ErrorCodes.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\support\exception.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\support\FileIOHelper.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\support\Global.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\support\HLSLOptions.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\support\HLSLVersion.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\support\microcom.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\support\SPIRVOptions.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\support\Unicode.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\support\WinAdapter.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\support\WinFunctions.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\support\WinIncludes.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\test\CompilationResult.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\test\D3DReflectionDumper.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\test\D3DReflectionStrings.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\test\DumpContext.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\test\DxcTestUtils.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\test\HLSLTestData.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\test\HlslTestUtils.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\test\RDATDumper.h" />
+    <ClInclude Include="directxshadercompiler\include\dxc\test\WEXAdapter.h" />
+    <ClInclude Include="fast_obj.h" />
+    <ClInclude Include="obj_parse.h" />
+    <ClInclude Include="sargent.h" />
+    <ClInclude Include="utils.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="directxshadercompiler\include\dxc\dxilcontainer\DxilRuntimeReflection.inl" />
+    <None Include="directxshadercompiler\include\dxc\dxilcontainer\RDAT_LibraryTypes.inl" />
+    <None Include="directxshadercompiler\include\dxc\dxilcontainer\RDAT_Macros.inl" />
+    <None Include="directxshadercompiler\include\dxc\dxilcontainer\RDAT_PdbInfoTypes.inl" />
+    <None Include="directxshadercompiler\include\dxc\dxilcontainer\RDAT_SubobjectTypes.inl" />
+    <None Include="directxshadercompiler\include\dxc\dxil\DxilSigPoint.inl" />
+    <None Include="directxshadercompiler\include\dxc\hlsl\DxilSignatureAllocator.inl" />
+    <None Include="directxshadercompiler\include\dxc\hlsl\ViewIDPipelineValidation.inl" />
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="pixel_shader.hlsl">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
+    <FxCompile Include="vertex_shader.hlsl">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

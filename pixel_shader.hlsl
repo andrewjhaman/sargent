@@ -17,17 +17,17 @@ struct PixelOutput
 //	float metalness;
 //};
 
-cbuffer GlobalBindings : register(b0)
-{
-	float time;
-};
+//cbuffer GlobalBindings : register(b0)
+//{
+//	float time;
+//};
 
 PixelOutput main(PixelInput pixel_input)
 {
 	float3 in_colour = pixel_input.colour;
     in_colour = saturate(pixel_input.colour);
                                    
-	in_colour.x *= sin(time) * 0.5 + 0.5;
+	//in_colour.x *= sin(time) * 0.5 + 0.5;
                                     
     PixelOutput output;
     output.attachment0 = float4(in_colour, 1.0);

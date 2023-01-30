@@ -1,0 +1,378 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav</Extensions>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="dx_window.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="fast_obj.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="obj_parse.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="sargent.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="utils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxcapi.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxcapi.internal.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxcdxrfallbackcompiler.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxcerrors.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxcisense.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxcpix.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxctools.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\HlslIntrinsicOp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxcbindingtable\DxcBindingTable.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DXIL.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilCBuffer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilCompType.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilConstants.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilCounters.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilEntryProps.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilFunctionProps.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilInstructions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilInterpolationMode.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilMetadataHelper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilModule.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilOperations.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilPDB.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilResource.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilResourceBase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilResourceBinding.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilResourceProperties.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilSampler.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilSemantic.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilShaderFlags.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilShaderModel.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilSignature.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilSignatureElement.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilSigPoint.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilSubobject.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilTypeSystem.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxil\DxilUtil.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilcompression\DxilCompression.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilcompression\DxilCompressionHelpers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilcontainer\DxcContainerBuilder.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilcontainer\DxilContainer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilcontainer\DxilContainerAssembler.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilcontainer\DxilContainerReader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilcontainer\DxilPipelineStateValidation.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilcontainer\DxilRDATBuilder.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilcontainer\DxilRDATParts.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilcontainer\DxilRuntimeReflection.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilpdbinfo\DxilPdbInfoWriter.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilpixpasses\DxilPIXPasses.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilpixpasses\DxilPIXVirtualRegisters.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxilrootsignature\DxilRootSignature.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\dxrfallback\DxrFallbackCompiler.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\ComputeViewIdState.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\ControlDependence.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\DxilConvergentName.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\DxilExportMap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\DxilFallbackLayerPass.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\DxilGenerationPass.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\DxilLinker.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\DxilNoops.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\DxilPackSignatureElement.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\DxilPoisonValues.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\DxilSignatureAllocator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\DxilSpanAllocator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\DxilValidation.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\HLLowerUDT.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\HLMatrixLowerHelper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\HLMatrixLowerPass.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\HLMatrixType.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\HLModule.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\HLOperationLower.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\HLOperationLowerExtension.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\HLOperations.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\HLResource.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\HLSLExtensionsCodegenHelper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\hlsl\HLUtil.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\support\D3DReflection.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\support\d3dx12.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\support\dxcapi.impl.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\support\dxcapi.use.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\support\dxcfilesystem.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\support\DxcLangExtensionsCommonHelper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\support\DxcLangExtensionsHelper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\support\ErrorCodes.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\support\exception.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\support\FileIOHelper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\support\Global.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\support\HLSLOptions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\support\HLSLVersion.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\support\microcom.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\support\SPIRVOptions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\support\Unicode.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\support\WinAdapter.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\support\WinFunctions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\support\WinIncludes.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\support\d3d12TokenizedProgramFormat.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\test\CompilationResult.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\test\D3DReflectionDumper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\test\D3DReflectionStrings.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\test\DumpContext.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\test\DxcTestUtils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\test\HLSLTestData.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\test\HlslTestUtils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\test\RDATDumper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="directxshadercompiler\include\dxc\test\WEXAdapter.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="directxshadercompiler\include\dxc\dxil\DxilSigPoint.inl">
+      <Filter>Header Files</Filter>
+    </None>
+    <None Include="directxshadercompiler\include\dxc\dxilcontainer\DxilRuntimeReflection.inl">
+      <Filter>Header Files</Filter>
+    </None>
+    <None Include="directxshadercompiler\include\dxc\dxilcontainer\RDAT_LibraryTypes.inl">
+      <Filter>Header Files</Filter>
+    </None>
+    <None Include="directxshadercompiler\include\dxc\dxilcontainer\RDAT_Macros.inl">
+      <Filter>Header Files</Filter>
+    </None>
+    <None Include="directxshadercompiler\include\dxc\dxilcontainer\RDAT_PdbInfoTypes.inl">
+      <Filter>Header Files</Filter>
+    </None>
+    <None Include="directxshadercompiler\include\dxc\dxilcontainer\RDAT_SubobjectTypes.inl">
+      <Filter>Header Files</Filter>
+    </None>
+    <None Include="directxshadercompiler\include\dxc\hlsl\DxilSignatureAllocator.inl">
+      <Filter>Header Files</Filter>
+    </None>
+    <None Include="directxshadercompiler\include\dxc\hlsl\ViewIDPipelineValidation.inl">
+      <Filter>Header Files</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="pixel_shader.hlsl" />
+    <FxCompile Include="vertex_shader.hlsl" />
+  </ItemGroup>
+</Project>

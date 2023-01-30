@@ -1,9 +1,9 @@
-
-struct VertexInput 
-{
-	float3 in_position : POSITION;
-	float3 in_colour : COLOR;
-};
+//
+//struct VertexInput 
+//{
+//	float3 in_position : POSITION;
+//	float3 in_colour : COLOR;
+//};
 
 struct VertexOutput
 {
@@ -11,12 +11,12 @@ struct VertexOutput
 	float4 position : SV_Position;
 };
 
-
-cbuffer ObjectBindings : register(b0)
-{
-	float time_other;
-	float3 position;
-};
+//
+//cbuffer ObjectBindings : register(b0)
+//{
+//	float time_other;
+//	float3 position;
+//};
 
 float3 rotate_vec_by_quat(float3 v, float4 q)
 {
@@ -24,32 +24,50 @@ float3 rotate_vec_by_quat(float3 v, float4 q)
 }
 
 
-VertexOutput main(VertexInput vertex_input)
+struct Vertex
 {
-   float3 in_colour = vertex_input.in_colour;
-   float3 in_pos    = vertex_input.in_position;
-
-   in_colour.y *= sin(time_other * 10) * 0.5 + 0.5;
-
-   float half_angle = time_other * 0.5;
-
-   float4 quat = { 0.0, sin(half_angle), 0.0, cos(half_angle) };
-   quat = normalize(quat);
-   in_pos = rotate_vec_by_quat(in_pos, quat);
+	float3 position;
+	float3 normal;
+};
 
 
-   in_pos += position;
+#define BUFFER_SPACE space0
+StructuredBuffer<Vertex> BufferTable[] : register(t0, BUFFER_SPACE);
 
 
-   VertexOutput output;
+VertexOutput main(uint vertex_id : SV_VertexID)
+{
+	//float3 in_pos    = vertex_input.in_position;
+	//float3 in_colour = vertex_input.in_colour;
 
-   output.position.x = in_pos.x;
-   output.position.y = in_pos.y;
-   output.position.z = in_pos.z - 0.2;
-   output.position.w = in_pos.z;
+	Vertex vertex = BufferTable[0].Load(vertex_id);
+
+	float3 in_pos = vertex.position;
+	float3 in_colour = vertex.normal;
+
+
+	//
+	//in_colour.y *= sin(time_other * 10) * 0.5 + 0.5;
+	//float half_angle = time_other * 0.5;
+	//
+	//float4 quat = { 0.0, sin(half_angle), 0.0, cos(half_angle) };
+	//quat = normalize(quat);
+	//in_pos = rotate_vec_by_quat(in_pos, quat);
+//
+//
+	//in_pos += position;
+	in_pos.z += 2.5;
+
+
+	VertexOutput output;
+	
+	output.position.x = in_pos.x;
+	output.position.y = in_pos.y * (1920/1080);
+	output.position.z = in_pos.z - 0.2;
+	output.position.w = in_pos.z;
 
 
 
-   output.colour = in_colour;
-   return output;
+	output.colour = in_colour;
+	return output;
 }
