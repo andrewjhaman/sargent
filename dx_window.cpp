@@ -187,8 +187,9 @@ HANDLE fence_event;
 ID3D12Fence* fence;
 UINT64 fence_value;
 
-struct DrawInfo
+struct alignas(16) DrawInfo
 {
+	u32 vertex_buffer_index;
 	vec3 position;
 	vec4 quat;
 };
@@ -817,11 +818,12 @@ void draw()
 
 	for (u32 i = 0; i < draw_count; ++i)
 	{		
-		DrawInfo draw_info;
+		DrawInfo draw_info = {};
 		draw_info.position = { rand_f32_in_range(-p_range, p_range, &rng), rand_f32_in_range(-p_range, p_range, &rng), rand_f32_in_range(-p_range, p_range, &rng) };
 		draw_info.quat = { rand_f32_in_range(-1.0, 1.0, &rng), rand_f32_in_range(-1.0, 1.0, &rng), rand_f32_in_range(-1.0, 1.0, &rng), rand_f32_in_range(-1.0, 1.0, &rng) };
 		draw_info.quat = normalize(draw_info.quat);
 		draw_info.position.z += 2.5f;
+		draw_info.vertex_buffer_index = 0;
 
 		command_list->SetGraphicsRoot32BitConstants(1, (sizeof(DrawInfo) + 3) / 4, &draw_info, 0);
 		command_list->DrawIndexedInstanced(temp__index_count, 1, 0, 0, 0);

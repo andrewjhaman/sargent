@@ -14,6 +14,7 @@ struct VertexOutput
 
 struct DrawInfo
 {
+	uint vertex_buffer_index;
 	float3 position;
 	float4 quat;
 };
@@ -46,11 +47,10 @@ VertexOutput main(uint vertex_id : SV_VertexID)
 	//float3 in_pos    = vertex_input.in_position;
 	//float3 in_colour = vertex_input.in_colour;
 
-	Vertex vertex = VertexBufferTable[0].Load(vertex_id);
+	Vertex vertex = VertexBufferTable[draw_info.vertex_buffer_index].Load(vertex_id);
 
 	float3 in_pos = vertex.position;
 	float3 in_colour = vertex.normal;
-
 
 	//
 	//in_colour.y *= sin(time_other * 10) * 0.5 + 0.5;
