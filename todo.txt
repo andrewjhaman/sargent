@@ -1,0 +1,35 @@
+	TODO:
+--------------
+- Copy vertex data to gpu resident memory and profile
+- Implement compute shader draw dispatch and profile
+- Pre-Process meshes using mesh_optimizer.h and profile
+- Compute shader dispatch and profile
+- Frustum cull in dispatch shader and profile
+- Implement texturing
+- Implement multiple render targets (output normal)
+- Implement depth pre-pass and proeil
+- Implement a compute shader which uses the depth buffer and rendered normal 
+	buffer to generate some surfel locations.
+- Implement basic compute shader which fills out surfels with unshadowed point lights
+- Use surfels to light surfaces and other surfels
+- Pool uploads
+
+
+
+
+	TUTORIALS TODO:
+-----------------------
+- explainer about setting shader -> command_list->SetPipelineState()
+- minimal profiling setup
+
+
+
+
+
+
+
+
+	DONE:
+---------------
+- Profiling GPU time
+- Profile current setup

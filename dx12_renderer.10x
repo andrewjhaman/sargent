@@ -97,13 +97,7 @@
 				<Path>Dx12Renderer.ilk</Path>
 			</File>
 			<File>
-				<Path>Dx12_Renderer.exe</Path>
-			</File>
-			<File>
 				<Path>Dx12_Renderer.exp</Path>
-			</File>
-			<File>
-				<Path>Dx12_Renderer.ilk</Path>
 			</File>
 			<File>
 				<Path>buddha.obj</Path>
@@ -164,6 +158,18 @@
 			</File>
 			<File>
 				<Path>SargentMath.h</Path>
+			</File>
+			<File>
+				<Path>SmallWindows.h</Path>
+			</File>
+			<File>
+				<Path>Dx12_Renderer.exe</Path>
+			</File>
+			<File>
+				<Path>Dx12_Renderer.ilk</Path>
+			</File>
+			<File>
+				<Path>todo.txt</Path>
 			</File>
 		</Children>
 	</Workspace>

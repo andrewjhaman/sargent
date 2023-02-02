@@ -1,14 +1,9 @@
-//
-//struct VertexInput 
-//{
-//	float3 in_position : POSITION;
-//	float3 in_colour : COLOR;
-//};
 
 struct VertexOutput
 {
-	float3 colour : COLOR;
 	float4 position : SV_Position;
+	float3 colour : COLOR;
+	float3 normal : NORMAL;
 };
 
 
@@ -86,9 +81,11 @@ VertexOutput main(uint vertex_id : SV_VertexID)
 	in_pos += draw_info.position;
 
 	VertexOutput output;
-	
+
 	output.position = mul( globals.projection, mul(globals.view, float4(in_pos, 1.0)));
 
 	output.colour = in_colour;
+	output.normal = normalize(rotate_vec_by_quat(vertex.normal, quat));
+
 	return output;
 }

@@ -21,6 +21,7 @@ static u32 window_height = 1080;
 #define NOMINMAX
 #include <Windows.h>
 #include <ShellScalingAPI.h>
+#include "SmallWindows.h"
 
 #include <dbghelp.h>
 
@@ -93,6 +94,10 @@ ID3D12DescriptorHeap* vertex_buffer_heap;
 
 ID3D12CommandAllocator* command_allocator;
 ID3D12GraphicsCommandList* command_list = 0;
+
+ID3D12GraphicsCommandList* upload_command_list = 0;
+ID3D12CommandAllocator* upload_command_allocator;
+
 ID3D12PipelineState* pipeline_state = 0;
 ID3D12RootSignature* root_signature;
 D3D12_CPU_DESCRIPTOR_HANDLE render_target_view_handle = {};
@@ -116,6 +121,16 @@ HANDLE fence_event;
 ID3D12Fence* fence;
 UINT64 fence_value;
 
+
+ID3D12CommandQueue* upload_command_queue;
+HANDLE upload_fence_event;
+ID3D12Fence* upload_fence;
+UINT64 upload_fence_value;
+
+f64 gpu_ticks_per_second = 1.0;
+
+
+
 struct alignas(16) DrawInfo
 {
 	u32 vertex_buffer_index;
@@ -134,23 +149,26 @@ struct Buffer
 {
 	size_t size_in_bytes;
 	ID3D12Resource* resource;
+	ID3D12Resource* upload_resource;
 };
 
 
 Buffer vertex_buffer_1;
 Buffer vertex_buffer_2;
 
+ID3D12QueryHeap* timestamp_query_heap;
+Buffer timestamp_query_result_buffer;
+
+
 //Buffer constant_buffer;
-
-
-Buffer create_buffer(size_t size_in_bytes)
+Buffer create_readback_buffer(size_t size_in_bytes)
 {
 	Buffer result = {};
 
 	result.size_in_bytes = size_in_bytes;
 
 	D3D12_HEAP_PROPERTIES heap_properties = {};
-	heap_properties.Type = D3D12_HEAP_TYPE_UPLOAD;
+	heap_properties.Type = D3D12_HEAP_TYPE_READBACK;
 	heap_properties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
 	heap_properties.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
 	heap_properties.CreationNodeMask = 1;
@@ -169,20 +187,98 @@ Buffer create_buffer(size_t size_in_bytes)
 	resource_description.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 	resource_description.Flags = D3D12_RESOURCE_FLAG_NONE;
 
-	MUST_SUCCEED(device->CreateCommittedResource(&heap_properties, D3D12_HEAP_FLAG_NONE, &resource_description, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&result.resource)));
+	MUST_SUCCEED(device->CreateCommittedResource(&heap_properties, D3D12_HEAP_FLAG_NONE, &resource_description, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&result.resource)));
 
 	return result;
 }
 
-void upload_to_buffer(Buffer* buffer, void* data, size_t data_size_in_bytes)
+
+Buffer create_buffer(size_t size_in_bytes)
 {
+	Buffer result = {};
+
+	result.size_in_bytes = size_in_bytes;
+
+	D3D12_HEAP_PROPERTIES heap_properties = {};
+	heap_properties.Type = D3D12_HEAP_TYPE_DEFAULT;
+	heap_properties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+	heap_properties.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+	heap_properties.CreationNodeMask = 1;
+	heap_properties.VisibleNodeMask = 1;
+
+	D3D12_RESOURCE_DESC resource_description = {};
+	resource_description.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	resource_description.Alignment = 0;
+	resource_description.Width = size_in_bytes;
+	resource_description.Height = 1;
+	resource_description.DepthOrArraySize = 1;
+	resource_description.MipLevels = 1;
+	resource_description.Format = DXGI_FORMAT_UNKNOWN;
+	resource_description.SampleDesc.Count = 1;
+	resource_description.SampleDesc.Quality = 0;
+	resource_description.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+	resource_description.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+	MUST_SUCCEED(device->CreateCommittedResource(&heap_properties, D3D12_HEAP_FLAG_NONE, &resource_description, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&result.resource)));
+
+	heap_properties.Type = D3D12_HEAP_TYPE_UPLOAD;
+	MUST_SUCCEED(device->CreateCommittedResource(&heap_properties, D3D12_HEAP_FLAG_NONE, &resource_description, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&result.upload_resource)));
+
+	return result;
+}
+
+void upload_to_buffer(Buffer* buffer, void* data, size_t data_size_in_bytes, D3D12_RESOURCE_STATES end_state = D3D12_RESOURCE_STATE_GENERIC_READ)
+{
+	++upload_fence_value;
+	u32 current_fence_value = upload_fence_value;
+	MUST_SUCCEED(upload_command_queue->Signal(upload_fence, current_fence_value));
+	if(upload_fence->GetCompletedValue() < current_fence_value)
+	{
+		MUST_SUCCEED(upload_fence->SetEventOnCompletion(current_fence_value, upload_fence_event));
+		WaitForSingleObject(upload_fence_event, INFINITE);
+	}
+
+	upload_command_queue->Wait(upload_fence, current_fence_value);
+
+	//@SPEED! we want a better scheme for uploading stuff!
 	D3D12_RANGE read_range = {};
 	void* upload_destination = 0;
 
+		MUST_SUCCEED(upload_command_allocator->Reset());
+	MUST_SUCCEED(upload_command_list->Reset(upload_command_allocator, 0));
+
 	assert(buffer->size_in_bytes >= data_size_in_bytes);
 
-	MUST_SUCCEED(buffer->resource->Map(0, &read_range, (void**)&upload_destination));
+	MUST_SUCCEED(buffer->upload_resource->Map(0, &read_range, (void**)&upload_destination));
 	memcpy(upload_destination, data, data_size_in_bytes);
+	buffer->upload_resource->Unmap(0, nullptr);
+
+	upload_command_list->CopyResource(buffer->resource, buffer->upload_resource);
+
+	D3D12_RESOURCE_BARRIER barrier;
+	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+	barrier.Transition.pResource = buffer->resource;
+	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+	barrier.Transition.StateAfter  = end_state;
+	barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	upload_command_list->ResourceBarrier(1, &barrier);
+
+	upload_command_list->Close();
+
+	ID3D12CommandList* command_lists[] = {upload_command_list};
+	upload_command_queue->ExecuteCommandLists(1,  command_lists);
+}
+
+void download_from_buffer(Buffer* buffer, void* dest, size_t read_size_in_bytes)
+{
+	D3D12_RANGE read_range = {};
+	void* download_source = 0;
+
+	assert(buffer->size_in_bytes >= read_size_in_bytes);
+
+	MUST_SUCCEED(buffer->resource->Map(0, &read_range, (void**)&download_source));
+	memcpy(dest, download_source, read_size_in_bytes);
 	buffer->resource->Unmap(0, nullptr);
 }
 
@@ -241,7 +337,7 @@ Mesh load_obj(char* filename)
 
 	result.index_buffer = create_buffer(index_buffer_size);
 
-	upload_to_buffer(&result.index_buffer, index_buffer_data, index_buffer_size);
+	upload_to_buffer(&result.index_buffer, index_buffer_data, index_buffer_size, D3D12_RESOURCE_STATE_INDEX_BUFFER);
 
 	result.index_buffer_view.BufferLocation = result.index_buffer.resource->GetGPUVirtualAddress();
 	result.index_buffer_view.Format = DXGI_FORMAT_R32_UINT;
@@ -329,25 +425,23 @@ void init_directx12(HWND window)
 	
 	MUST_SUCCEED(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&command_allocator)));
 	
-	
-	
-	
-	
 	MUST_SUCCEED(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence)));
-#if 0
+
+
+
+	D3D12_QUERY_HEAP_DESC timestamp_query_heap_description = {};
+	timestamp_query_heap_description.Count = 2;
+	timestamp_query_heap_description.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
+	MUST_SUCCEED(device->CreateQueryHeap(&timestamp_query_heap_description, IID_PPV_ARGS(&timestamp_query_heap)));
+	timestamp_query_result_buffer = create_readback_buffer(sizeof(u64) * 2);
+
+	u64 gpu_frequency = 0;
+	command_queue->GetTimestampFrequency(&gpu_frequency);
+	printf("gpu frequency %llu\n", gpu_frequency);
+	gpu_ticks_per_second = 1.0 / (f64)gpu_frequency;
 	
-	ID3D12GraphicsCommandList* command_list;
-	D3D12_RESOURCE_BARRIER barrier = {};
-	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-	barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-	barrier.Transition.pResource = tex_resource;
-	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
-	barrier.Transition.StateAfter  = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-	barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_RESOURCES;
 	
-	MUST_SUCCEED(command_list->ResourceBarrier(1, &barrier));
-#endif
-	
+
 	
 	surface_rect.left = 0;
 	surface_rect.top = 0;
@@ -378,7 +472,8 @@ void init_directx12(HWND window)
 	base_swap_chain = 0;
 	
 	frame_index = swap_chain->GetCurrentBackBufferIndex();
-	
+
+
 	
 	D3D12_DESCRIPTOR_HEAP_DESC render_target_view_heap_description = {};
 	render_target_view_heap_description.NumDescriptors = back_buffer_count;
@@ -546,6 +641,20 @@ void init_directx12(HWND window)
 		signature = 0;
 	}
 	
+
+	
+	{ //UPLOAD STUFF
+		D3D12_COMMAND_QUEUE_DESC queue_desc = {};
+		queue_desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+		queue_desc.Type  = D3D12_COMMAND_LIST_TYPE_DIRECT;
+		MUST_SUCCEED(device->CreateCommandQueue(&queue_desc, IID_PPV_ARGS(&upload_command_queue)));
+		ID3D12PipelineState* garbo = 0;
+		MUST_SUCCEED(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&upload_command_allocator)));
+		MUST_SUCCEED(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, upload_command_allocator, garbo, IID_PPV_ARGS(&upload_command_list)));
+		MUST_SUCCEED(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&upload_fence)));
+		upload_command_list->Close();
+	}
+
 	meshes[mesh_count++] = load_obj("bunny.obj");
 	meshes[mesh_count++] = load_obj("Apollo_Statue.obj");
 	
@@ -579,23 +688,6 @@ void init_directx12(HWND window)
 		}
 	}
 
-
-#if 0
-	constant_buffer = create_buffer(1024*1024);
-	{
-		D3D12_DESCRIPTOR_HEAP_DESC heap_desc = {};
-		heap_desc.NumDescriptors = 1;
-		heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-		heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-
-		MUST_SUCCEED(device->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(&constant_buffer_heap)));
-
-		D3D12_CONSTANT_BUFFER_VIEW_DESC constant_buffer_view_desc = {};
-		constant_buffer_view_desc.BufferLocation = constant_buffer.resource->GetGPUVirtualAddress();
-		constant_buffer_view_desc.SizeInBytes = (sizeof(ShaderGlobals) + 255) & ~255;	// CB size is required to be 256-byte aligned.
-		device->CreateConstantBufferView(&constant_buffer_view_desc, constant_buffer_heap->GetCPUDescriptorHandleForHeapStart());
-	}
-#endif
 
 	D3D12_SHADER_BYTECODE vertex_shader_byte_code;
 	D3D12_SHADER_BYTECODE pixel_shader_byte_code;
@@ -772,6 +864,10 @@ void draw(f64 dt)
 	MUST_SUCCEED(command_allocator->Reset());
 	MUST_SUCCEED(command_list->Reset(command_allocator, 0));
 
+	{
+		command_list->EndQuery(timestamp_query_heap, D3D12_QUERY_TYPE_TIMESTAMP, 0);
+	}
+
 	command_list->SetPipelineState(pipeline_state);
 	
 	
@@ -817,7 +913,7 @@ void draw(f64 dt)
 	rng = 101;
 	advance_rng((&rng));
 
-	u32 draw_count = 50;
+	u32 draw_count = 150;
 	
 
 	ShaderGlobals global_data = {};
@@ -830,16 +926,18 @@ void draw(f64 dt)
 	global_data.projection = perspective_infinite_reversed_z(70.0f, 0.01f, (f32)window_width, (f32)window_height);
 
 	
-	vec3 cam_pos = {};
-	cam_pos.z -= time;
+	vec3 cam_pos = Vec3(sinf((f32)time), 0.0f, cosf((f32)time));
+	cam_pos *= 10.0f;
+	//cam_pos.z -= time;
 
 	vec3 cam_dir = Vec3(sinf((f32)time), 0.0f, -2.0f);
 	cam_dir = normalize(cam_dir);
 	//cam_dir = { 0.0f, 0.0f, -1.0f };
 	
 	vec3 target = cam_pos + cam_dir;
+	//
+	target = {};
 	global_data.view = look_at(cam_pos, target, { 0.0f, 1.0f, 0.0f });
-	//global_data.view = transpose(global_data.view);
 	global_data.time = (f32)time;
 
 	command_list->SetGraphicsRoot32BitConstants(2, (sizeof(global_data) + 3) / 4, &global_data, 0);
@@ -848,19 +946,19 @@ void draw(f64 dt)
 
 	triangle_count = 0;
 
-	f32 p_range = 5.0f;
+	f32 p_range = 10.0f;
 	for (u32 i = 0; i < draw_count; ++i)
 	{	
 		u32 mesh_index = rand() % mesh_count;
 		Mesh& mesh = meshes[mesh_index];
 		command_list->IASetIndexBuffer(&mesh.index_buffer_view);
 		DrawInfo draw_info = {};
-		draw_info.position = { rand_f32_in_range(-p_range, p_range, &rng), rand_f32_in_range(-p_range, p_range, &rng), -10.0f + rand_f32_in_range(-p_range, p_range, &rng) };
+		draw_info.position = { rand_f32_in_range(-p_range, p_range, &rng), rand_f32_in_range(-p_range, p_range, &rng), rand_f32_in_range(-p_range, p_range, &rng) };
 		draw_info.quat = { rand_f32_in_range(-1.0, 1.0, &rng), rand_f32_in_range(-1.0, 1.0, &rng), rand_f32_in_range(-1.0, 1.0, &rng), rand_f32_in_range(-1.0, 1.0, &rng) };
 		draw_info.quat = normalize(draw_info.quat);
-		//draw_info.quat = { 0.0f, 0.0f, 0.0f, 1.0f };
 
-		draw_info.position.z += 2.5f;
+		draw_info.position.y /= p_range;
+		
 		draw_info.vertex_buffer_index = mesh_index;
 
 		command_list->SetGraphicsRoot32BitConstants(1, (sizeof(DrawInfo) + 3) / 4, &draw_info, 0);
@@ -879,6 +977,12 @@ void draw(f64 dt)
 	present_barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 	command_list->ResourceBarrier(1, &present_barrier);
 	
+
+	{
+		command_list->EndQuery(timestamp_query_heap, D3D12_QUERY_TYPE_TIMESTAMP, 1);
+		command_list->ResolveQueryData(timestamp_query_heap, D3D12_QUERY_TYPE_TIMESTAMP, 0, 2, timestamp_query_result_buffer.resource, 0);
+	}
+
 	MUST_SUCCEED(command_list->Close());
 	
 		
@@ -886,7 +990,6 @@ void draw(f64 dt)
 	command_queue->ExecuteCommandLists(1, command_lists);
 
 	swap_chain->Present(1, 0);
-	
 	
 	++fence_value;
 	u64 current_fence_value = fence_value;
@@ -900,6 +1003,7 @@ void draw(f64 dt)
 	command_queue->Wait(fence, current_fence_value);
 
 
+
 	frame_index = swap_chain->GetCurrentBackBufferIndex();
 	
 };
@@ -910,31 +1014,6 @@ void draw(f64 dt)
 struct Shader {
 
 };
-
-struct Mesh 
-{
-	f32 x;
-};
-
-Mesh* meshes[1024];
-constexpr u32 mesh_count = sizeof(meshes) / sizeof(Mesh*);
-
-
-
-struct BindGroup {
-
-};
-
-BindGroup* material_bindings[1024];
-constexpr u32 material_count = sizeof(material_bindings) / sizeof(BindGroup*);
-
-struct Draw {
-	Shader* shader;
-	Mesh*   mesh;
-	BindGroup* bind_group;
-	u32 dynamic_buffer_offset;
-};
-
 
 struct DrawArea {
 	Viewport viewport;
@@ -1224,6 +1303,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdArgs,
 
 	MSG message = {};
 
+	timeBeginPeriod(1);
 	LARGE_INTEGER timer_frequency;
 	QueryPerformanceFrequency(&timer_frequency);
 
@@ -1279,8 +1359,16 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdArgs,
 		
 		draw(dt);
 
+		u64 render_timestamps[2];
+
+		download_from_buffer(&timestamp_query_result_buffer, &render_timestamps, sizeof(render_timestamps));
+		u64 render_ticks = render_timestamps[1] - render_timestamps[0];
+
+		f64 gpu_dt = f64(render_ticks) * gpu_ticks_per_second;
+		f64 cpu_dt = dt - gpu_dt;
+
 		char window_title[4096];
-		sprintf_s(window_title, sizeof(window_title), "Sargent Renderer: dt:%.2fms, Tris:%llu, %.3fM:tris/s", smooth_dt*1000, triangle_count, f64(triangle_count)/smooth_dt/1000000);
+		sprintf_s(window_title, sizeof(window_title), "Sargent Renderer: dt:%.2fms, cdt: %.2fms, gdt:%.2fms, Tris:%llu, %.3fM:tris/s", smooth_dt*1000, cpu_dt*1000, gpu_dt*1000, triangle_count, f64(triangle_count)/smooth_dt/1000000);
 		SetWindowTextA(window, window_title);
 	}
 }
