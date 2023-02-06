@@ -1,9 +1,7 @@
 	TODO:
 --------------
-- Copy vertex data to gpu resident memory and profile
-- Implement compute shader draw dispatch and profile
 - Pre-Process meshes using mesh_optimizer.h and profile
-- Compute shader dispatch and profile
+- Implement compute shader draw dispatch and profile
 - Frustum cull in dispatch shader and profile
 - Implement texturing
 - Implement multiple render targets (output normal)
@@ -33,3 +31,4 @@
 ---------------
 - Profiling GPU time
 - Profile current setup
+- Copy vertex data to gpu resident memory and profile

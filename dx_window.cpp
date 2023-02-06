@@ -913,7 +913,7 @@ void draw(f64 dt)
 	rng = 101;
 	advance_rng((&rng));
 
-	u32 draw_count = 150;
+	u32 draw_count = 1250;
 	
 
 	ShaderGlobals global_data = {};
@@ -946,18 +946,18 @@ void draw(f64 dt)
 
 	triangle_count = 0;
 
-	f32 p_range = 10.0f;
+	f32 h_range = 100.0f;
+	f32 y_range = 25.0f;
 	for (u32 i = 0; i < draw_count; ++i)
 	{	
 		u32 mesh_index = rand() % mesh_count;
 		Mesh& mesh = meshes[mesh_index];
 		command_list->IASetIndexBuffer(&mesh.index_buffer_view);
 		DrawInfo draw_info = {};
-		draw_info.position = { rand_f32_in_range(-p_range, p_range, &rng), rand_f32_in_range(-p_range, p_range, &rng), rand_f32_in_range(-p_range, p_range, &rng) };
+		draw_info.position = { rand_f32_in_range(-h_range, h_range, &rng), rand_f32_in_range(-y_range, y_range, &rng), rand_f32_in_range(-h_range, h_range, &rng) };
 		draw_info.quat = { rand_f32_in_range(-1.0, 1.0, &rng), rand_f32_in_range(-1.0, 1.0, &rng), rand_f32_in_range(-1.0, 1.0, &rng), rand_f32_in_range(-1.0, 1.0, &rng) };
 		draw_info.quat = normalize(draw_info.quat);
 
-		draw_info.position.y /= p_range;
 		
 		draw_info.vertex_buffer_index = mesh_index;
 

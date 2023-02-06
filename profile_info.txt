@@ -9,9 +9,15 @@ Bindless vertex buffers in upload heaps. draw_count = 150
 gpu_dt 26-28ms, cpu_dt 5-6ms
 
 
-12:04AM 2/02/2023
+1:00AM 2/02/2023
 Bindless vertex buffers in default heaps. draw_count = 150
 gpu_dt 4.6ms, cpu_dt 11-12ms(VSYNC limited!)
+
+1:10:AM 2/02/2023
+Bindless vertex buffers in default heaps. draw_count = 1250
+gpu_dt 25ms, cpu_dt 7ms
+
+
 
 
 
