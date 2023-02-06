@@ -45,12 +45,11 @@ static u32 window_height = 1080;
 
 #include "utils.h"
 
-//#define FAST_OBJ_IMPLEMENTATION
-//#include "fast_obj.h"
+#define FAST_OBJ_IMPLEMENTATION
+#include "include/fast_obj.h"
 
-
-#define OBJ_PARSE_IMPLEMENTATION
-#include "obj_parse.h"
+//#define OBJ_PARSE_IMPLEMENTATION
+//#include "obj_parse.h"
 
 //http://developer.download.nvidia.com/devzone/devcenter/gamegraphics/files/OptimusRenderingPolicies.pdf
 //The following line is to favor the high performance NVIDIA GPU if there are multiple GPUs
@@ -304,6 +303,7 @@ struct Mesh
 Mesh meshes[4096];
 u32 mesh_count;
 
+#if 0
 Mesh load_obj(char* filename)
 {
 	Mesh result = {};
@@ -345,6 +345,110 @@ Mesh load_obj(char* filename)
 
 	delete [] vertex_buffer_data;
 	FreeParsedOBJ(&obj);
+
+	return result;
+}
+#endif
+
+
+void load_obj(char* filename, Vertex** vertices_out, size_t* vertices_count_out)
+{
+	fastObjMesh* obj_mesh = fast_obj_read(filename);
+
+
+	size_t index_count = 0;
+
+	for (u32 i = 0; i < obj_mesh->face_count; ++i)
+		index_count += 3 * (obj_mesh->face_vertices[i] - 2);
+
+
+	*vertices_count_out = index_count;
+	*vertices_out = new Vertex[*vertices_count_out];
+
+
+	Vertex* vertices = *vertices_out;
+
+	size_t vertex_offset = 0;
+	size_t index_offset = 0;
+
+
+	for (u32 i = 0; i < obj_mesh->face_count; ++i)
+	{
+		for (u32 j = 0; j < obj_mesh->face_vertices[i]; ++j)
+		{
+			fastObjIndex index = obj_mesh->indices[index_offset + j];
+
+			if (j >= 3)
+			{
+				vertices[vertex_offset + 0] = vertices[vertex_offset - 3];
+				vertices[vertex_offset + 1] = vertices[vertex_offset - 1];
+				vertex_offset += 2;
+			}
+
+			Vertex& v = vertices[vertex_offset++];
+			v.position[0] = obj_mesh->positions[index.p * 3 + 0];
+			v.position[1] = obj_mesh->positions[index.p * 3 + 1];
+			v.position[2] = obj_mesh->positions[index.p * 3 + 2];
+			v.normal[0] = obj_mesh->normals[index.n * 3 + 0];
+			v.normal[1] = obj_mesh->normals[index.n * 3 + 1];
+			v.normal[2] = obj_mesh->normals[index.n * 3 + 2];
+			//v.uvs[0] = obj_mesh->normals[index.t * 2 + 0];
+			//v.uvs[1] = obj_mesh->normals[index.t * 2 + 1];
+		}
+		index_offset += obj_mesh->face_vertices[i];
+	}
+	assert(vertex_offset == index_offset);
+	fast_obj_destroy(obj_mesh);
+}
+
+#include "include/meshoptimizer.h"
+#include "include/vfetchoptimizer.cpp"
+#include "include/vcacheoptimizer.cpp"
+#include "include/indexgenerator.cpp"
+Mesh load_mesh(char* filename) {
+	Mesh result = {};
+
+	Vertex* old_vertices = 0;
+	size_t index_count = 0;
+
+	load_obj(filename, &old_vertices, &index_count);
+
+	u32* remap = new u32[index_count];
+
+	size_t vertex_count = meshopt_generateVertexRemap(remap, 0, index_count, old_vertices, index_count, sizeof(Vertex));
+
+	Vertex* new_vertices = new Vertex[vertex_count];
+	u32* indices = new u32[index_count];
+
+
+	meshopt_remapVertexBuffer(new_vertices, old_vertices, index_count, sizeof(Vertex), remap);
+	meshopt_remapIndexBuffer(indices, 0, index_count, remap);
+
+	meshopt_optimizeVertexCache(indices, indices, index_count, vertex_count);
+	meshopt_optimizeVertexFetch(new_vertices, indices, index_count, new_vertices, vertex_count, sizeof(Vertex));
+
+
+	result.index_count = index_count;
+	result.vertex_count = vertex_count;
+
+	u32 vertex_buffer_size_in_bytes = result.vertex_count * sizeof(Vertex);
+	result.vertex_buffer = create_buffer(vertex_buffer_size_in_bytes);
+	upload_to_buffer(&result.vertex_buffer, new_vertices, vertex_buffer_size_in_bytes);
+	delete[] new_vertices;
+	delete[] old_vertices;
+
+
+	u32 index_buffer_size_in_bytes = result.index_count * sizeof(u32);
+	result.index_buffer = create_buffer(index_buffer_size_in_bytes);
+	upload_to_buffer(&result.index_buffer, indices, index_buffer_size_in_bytes, D3D12_RESOURCE_STATE_INDEX_BUFFER);
+
+	result.index_buffer_view.BufferLocation = result.index_buffer.resource->GetGPUVirtualAddress();
+	result.index_buffer_view.Format = DXGI_FORMAT_R32_UINT;
+	result.index_buffer_view.SizeInBytes = index_buffer_size_in_bytes;
+
+	delete[] indices;
+
+	delete[] remap;
 
 	return result;
 }
@@ -655,8 +759,8 @@ void init_directx12(HWND window)
 		upload_command_list->Close();
 	}
 
-	meshes[mesh_count++] = load_obj("bunny.obj");
-	meshes[mesh_count++] = load_obj("Apollo_Statue.obj");
+	meshes[mesh_count++] = load_mesh("bunny.obj");
+	meshes[mesh_count++] = load_mesh("Apollo_Statue.obj");
 	
 	// Vertex Buffer SRV here.
 	{
@@ -709,7 +813,7 @@ void init_directx12(HWND window)
 	{
 		vertex_shader_path,
 		L"-E", L"main",
-		L"-T", L"vs_6_5",
+		L"-T", L"vs_6_3",//6_5 is latest supported by my 1060, 6_3 latest on the surface (intel 520)
 		L"-Zi"
 	};
 	IDxcBlobEncoding* vertex_source_pointer = 0;
@@ -746,7 +850,7 @@ void init_directx12(HWND window)
 	{
 		vertex_shader_path,
 		L"-E", L"main",
-		L"-T", L"ps_6_5",
+		L"-T", L"ps_6_3",
 		L"-Zi"
 	};
 	IDxcBlobEncoding* pixel_source_pointer = 0;
@@ -913,7 +1017,7 @@ void draw(f64 dt)
 	rng = 101;
 	advance_rng((&rng));
 
-	u32 draw_count = 1250;
+	u32 draw_count = 1250/16;
 	
 
 	ShaderGlobals global_data = {};
@@ -946,8 +1050,8 @@ void draw(f64 dt)
 
 	triangle_count = 0;
 
-	f32 h_range = 100.0f;
-	f32 y_range = 25.0f;
+	f32 h_range = 100.0f / 4;
+	f32 y_range = 25.0f / 4;
 	for (u32 i = 0; i < draw_count; ++i)
 	{	
 		u32 mesh_index = rand() % mesh_count;
