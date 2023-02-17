@@ -86,7 +86,7 @@ static constexpr u32 back_buffer_count = 2;
 u64 triangle_count = 0;
 
 
-ID3D12Device* device;
+ID3D12Device5* device;
 
 
 ID3D12DescriptorHeap* vertex_buffer_heap;
@@ -478,7 +478,7 @@ void init_directx12(HWND window)
 	MUST_SUCCEED(CreateDXGIFactory2(dxgi_factory_flags, IID_PPV_ARGS(&factory)));
 	
 	
-#define DX_FEATURE_LEVEL (D3D_FEATURE_LEVEL_12_0)
+#define DX_FEATURE_LEVEL (D3D_FEATURE_LEVEL_12_1)
 	
 	IDXGIAdapter1* adapter;
 
@@ -677,6 +677,16 @@ void init_directx12(HWND window)
 	device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS7, &feature_data_2, sizeof(feature_data_2));
 	printf("Mesh shaders are%s supported.\n", feature_data_2.MeshShaderTier == D3D12_MESH_SHADER_TIER_NOT_SUPPORTED ? " not" : "");
 	
+
+	
+	//Check support for RT support
+	D3D12_FEATURE_DATA_D3D12_OPTIONS5 feature_data_3;
+	device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &feature_data_3, sizeof(feature_data_3));
+	printf("RT is%s supported.\n", feature_data_3.RaytracingTier < D3D12_RAYTRACING_TIER_1_0 ? " not" : "");
+	
+
+
+
 	D3D12_DESCRIPTOR_RANGE1 ranges[1];
 	ranges[0].RegisterSpace = 0;
 	ranges[0].BaseShaderRegister = 0;
@@ -1017,7 +1027,7 @@ void draw(f64 dt)
 	rng = 101;
 	advance_rng((&rng));
 
-	u32 draw_count = 1250/16;
+	u32 draw_count = 1250;
 	
 
 	ShaderGlobals global_data = {};
@@ -1050,8 +1060,8 @@ void draw(f64 dt)
 
 	triangle_count = 0;
 
-	f32 h_range = 100.0f / 4;
-	f32 y_range = 25.0f / 4;
+	f32 h_range = 100.0f;
+	f32 y_range = 25.0f;
 	for (u32 i = 0; i < draw_count; ++i)
 	{	
 		u32 mesh_index = rand() % mesh_count;

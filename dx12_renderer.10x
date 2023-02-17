@@ -136,13 +136,7 @@
 				<Path>dx_window.obj</Path>
 			</File>
 			<File>
-				<Path>fast_obj.h</Path>
-			</File>
-			<File>
 				<Path>icosphere.obj</Path>
-			</File>
-			<File>
-				<Path>obj_parse.h</Path>
 			</File>
 			<File>
 				<Path>pixel_shader.hlsl</Path>
@@ -171,6 +165,18 @@
 			<File>
 				<Path>todo.txt</Path>
 			</File>
+			<File>
+				<Path>profile_info.txt</Path>
+			</File>
+			<Folder>
+				<Path>include</Path>
+				<IncludeFilter>*.*,</IncludeFilter>
+				<ExcludeFilter>*.lib,*.pch,*.dll,*.pdb,.vs,Debug,Release,x64,obj,*.user,Intermediate,</ExcludeFilter>
+				<SyncFiles>true</SyncFiles>
+				<Recursive>true</Recursive>
+				<IsVirtual>false</IsVirtual>
+				<Children></Children>
+			</Folder>
 		</Children>
 	</Workspace>
 </N10X>
