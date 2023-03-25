@@ -63,9 +63,6 @@ StructuredBuffer<Vertex> VertexBufferTable[] : register(t0, BUFFER_SPACE);
 
 VertexOutput main(uint vertex_id : SV_VertexID)
 {
-	//float3 in_pos    = vertex_input.in_position;
-	//float3 in_colour = vertex_input.in_colour;
-
 	Vertex vertex = VertexBufferTable[draw_info.vertex_buffer_index].Load(vertex_id);
 
 	float3 in_pos = vertex.position;

@@ -18,10 +18,19 @@ Bindless vertex buffers in default heaps. draw_count = 1250
 gpu_dt 25ms, cpu_dt 7ms, 33ms total
 
 
-11:24AM 7/02/2024
+11:24AM 7/02/2023
 Use meshoptimizer.h and fastobj.h, draw_count = 1250
 gpu_dt 27ms, cpu_dt 5.5ms, 32.7ms total
 
+
+
+2:43 PM 25/03/2023
+ExecuteIndirect with a static scene, draw_count = 1250
+gpu_dt ~27.07ms, cpu_dt ~6.45ms, ~33ms total
+
+2:50 PM 25/03/2023
+ExecuteIndirect with a none-static scene, draw_count = 1250
+gpu_dt ~27.07, cpu_dt ~6.0ms, ~33ms total
 
 
 

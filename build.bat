@@ -5,7 +5,7 @@ set CommonFlags=-Z7 -FeDx12_Renderer.exe -EHsc Winmm.lib
 set OptimizationLevel=-Od
 
 if "%1"=="Release" ( 
-	set OptimizationLevel=-O2
+	set OptimizationLevel=-O2 -GL -GA
 	echo Building Release.
 ) else (
 	set OptimizationLevel=-Od -D_DEBUG
