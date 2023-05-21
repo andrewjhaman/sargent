@@ -97,6 +97,7 @@ ID3D12GraphicsCommandList* command_list = 0;
 ID3D12GraphicsCommandList* upload_command_list = 0;
 ID3D12CommandAllocator* upload_command_allocator;
 
+
 ID3D12PipelineState* pipeline_state = 0;
 ID3D12RootSignature* root_signature;
 D3D12_CPU_DESCRIPTOR_HANDLE render_target_view_handle = {};
@@ -107,6 +108,10 @@ u32 current_buffer;
 ID3D12DescriptorHeap* render_target_view_heap;
 ID3D12Resource* render_targets[back_buffer_count];
 u32 render_target_view_descriptor_size;
+
+
+ID3D12PipelineState* cull_compute_pipeline_state = 0;
+ID3D12RootSignature* cull_compute_root_signature = 0;
 
 
 D3D12_DEPTH_STENCIL_DESC default_depth_stencil_state;
@@ -134,9 +139,12 @@ f64 gpu_ticks_per_second = 1.0;
 
 struct alignas(16) DrawInfo
 {
-	u32 vertex_buffer_index;
-	vec3 position;
 	vec4 quat;
+	vec3 position;
+	u32 vertex_buffer_index;
+	u32 __packing_a;
+	u32 __packing_b;
+	u32 __packing_c;
 };
 
 struct alignas(16) ShaderGlobals
@@ -162,17 +170,48 @@ Buffer timestamp_query_result_buffer;
 
 
 constexpr u32 MAX_NUM_DRAW_CALLS = 4096;
-Buffer draw_call_buffers[back_buffer_count];
 ID3D12CommandSignature* command_signature;
 
-struct alignas(16) DrawCallArguments {
-    D3D12_INDEX_BUFFER_VIEW index_buffer_view;
+struct alignas(16) DrawCallInfo {
     DrawInfo draw_info;
-    D3D12_DRAW_INDEXED_ARGUMENTS indexed;
+    D3D12_INDEX_BUFFER_VIEW index_buffer_view;
+    u32 triangle_count;
+	u32 packing_a;
+	u32 packing_b;
 };
 
 
-DrawCallArguments draw_call_arguments[back_buffer_count][MAX_NUM_DRAW_CALLS];
+struct alignas(16) D3D12_DRAW_INDEXED_ARGUMENTS_ALIGNED
+    {
+    UINT IndexCountPerInstance;
+    UINT InstanceCount;
+    UINT StartIndexLocation;
+    INT BaseVertexLocation;
+    UINT StartInstanceLocation;
+    };
+
+
+struct alignas(16)  D3D12_INDEX_BUFFER_VIEW_ALIGNED
+    {
+    D3D12_GPU_VIRTUAL_ADDRESS BufferLocation;
+    UINT SizeInBytes;
+    DXGI_FORMAT Format;
+    };
+
+struct alignas(16) DrawArguments {
+    D3D12_INDEX_BUFFER_VIEW_ALIGNED index_buffer_view;
+	DrawInfo draw_info;
+	D3D12_DRAW_INDEXED_ARGUMENTS_ALIGNED indexed;
+};
+
+
+
+ID3D12DescriptorHeap* draw_call_info_buffer_heap;
+ID3D12DescriptorHeap* argument_buffer_heap;
+Buffer draw_call_info_buffers[back_buffer_count];
+Buffer draw_call_argument_buffers[back_buffer_count];
+
+DrawCallInfo draw_call_infos[back_buffer_count][MAX_NUM_DRAW_CALLS];
 
 
 void transition(ID3D12GraphicsCommandList* cl, ID3D12Resource* resource, D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after)
@@ -189,7 +228,6 @@ void transition(ID3D12GraphicsCommandList* cl, ID3D12Resource* resource, D3D12_R
 
 
 
-//Buffer constant_buffer;
 Buffer create_readback_buffer(size_t size_in_bytes)
 {
 	Buffer result = {};
@@ -795,11 +833,11 @@ void init_directx12(HWND window)
         arguments[1].Constant.Num32BitValuesToSet = (sizeof(DrawInfo) + 3) / 4;
         arguments[1].Constant.DestOffsetIn32BitValues = 0;
         
-        //Must come last
+        //Must come last 
         arguments[2].Type = D3D12_INDIRECT_ARGUMENT_TYPE_DRAW_INDEXED;
         
         D3D12_COMMAND_SIGNATURE_DESC command_signature_description = {};
-        command_signature_description.ByteStride = sizeof(DrawCallArguments);
+        command_signature_description.ByteStride = sizeof(DrawArguments);
         command_signature_description.NumArgumentDescs = 3;
         command_signature_description.pArgumentDescs = arguments;
         
@@ -809,11 +847,6 @@ void init_directx12(HWND window)
             
         }
     }
-    
-    
-    
-    
-    
 	
 	{ //UPLOAD STUFF
 		D3D12_COMMAND_QUEUE_DESC queue_desc = {};
@@ -850,7 +883,6 @@ void init_directx12(HWND window)
         
 		D3D12_CPU_DESCRIPTOR_HANDLE handle = vertex_buffer_heap->GetCPUDescriptorHandleForHeapStart();
         
-		//for (Mesh& mesh : meshes)
 		for(int i = 0; i < mesh_count; ++i)
 		{
 			Mesh& mesh = meshes[i];
@@ -951,11 +983,6 @@ void init_directx12(HWND window)
 	
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline_state_object_description = {};
     
-	
-    for(u32 i = 0; i < back_buffer_count; ++i)
-        draw_call_buffers[i] = create_buffer(sizeof(DrawCallArguments) * MAX_NUM_DRAW_CALLS);
-    
-    
 	pipeline_state_object_description.pRootSignature = root_signature;
 	
 	
@@ -1012,6 +1039,194 @@ void init_directx12(HWND window)
 	
 	MUST_SUCCEED(device->CreateGraphicsPipelineState(&pipeline_state_object_description, IID_PPV_ARGS(&pipeline_state)));
 	
+    
+    
+    
+    {
+        D3D12_SHADER_BYTECODE shader_byte_code;
+        
+        {
+            LPCWSTR shader_path = L"cull_compute.hlsl";
+            LPCWSTR shader_args[] =
+            {
+                shader_path,
+                L"-E", L"main",
+                L"-T", L"cs_6_3",//6_5 is latest supported by my 1060, 6_3 latest on the surface (intel 520)
+                L"-Zi"
+            };
+            IDxcBlobEncoding* source_pointer = 0;
+            utils->LoadFile(shader_path, 0, &source_pointer);
+            DxcBuffer source;
+            source.Ptr  = source_pointer->GetBufferPointer();
+            source.Size = source_pointer->GetBufferSize();
+            source.Encoding = DXC_CP_ACP;
+            
+            IDxcResult* shader_results;
+            compiler->Compile(&source, shader_args, sizeof(shader_args) / sizeof(shader_args[0]), include_handler, IID_PPV_ARGS(&shader_results));
+            
+            IDxcBlobUtf8* shader_errors = 0;
+            shader_results->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&shader_errors), 0);
+            
+            if(shader_errors && shader_errors->GetStringLength()) printf("Shader Compilation Errors:\n%ls:%s\n", shader_path, (char*)shader_errors->GetBufferPointer());
+            
+            HRESULT shader_status;
+            shader_results->GetStatus(&shader_status);
+            if(FAILED(shader_status)) REPORT_ERROR("Compute Shader Blob is not valid.!");
+            
+            IDxcBlob* shader_blob = 0;
+            IDxcBlobUtf16* shader_name = 0;
+            shader_results->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(&shader_blob), &shader_name);
+            
+            shader_byte_code.pShaderBytecode = shader_blob->GetBufferPointer();
+            shader_byte_code.BytecodeLength = shader_blob->GetBufferSize();
+            if(!shader_byte_code.pShaderBytecode || !shader_byte_code.BytecodeLength)
+                REPORT_ERROR("Error getting bytecode from vertex shader!");
+        }
+        
+        
+        {//Create the Root Signature
+            D3D12_DESCRIPTOR_RANGE1 ranges[2];
+            ranges[0].RegisterSpace = 0;
+            ranges[0].BaseShaderRegister = 0;
+            ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+            ranges[0].NumDescriptors = UINT_MAX;
+            ranges[0].OffsetInDescriptorsFromTableStart = 0;
+            ranges[0].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE;
+            
+            ranges[1].RegisterSpace = 0;
+            ranges[1].BaseShaderRegister = 0;
+            ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+            ranges[1].NumDescriptors = UINT_MAX;
+            ranges[1].OffsetInDescriptorsFromTableStart = back_buffer_count;
+            ranges[1].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE;
+            
+            D3D12_ROOT_PARAMETER1 root_parameters[1];
+            root_parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+            root_parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+            root_parameters[0].DescriptorTable.NumDescriptorRanges = _countof(ranges);
+            root_parameters[0].DescriptorTable.pDescriptorRanges = ranges;
+            
+            
+            
+            D3D12_VERSIONED_ROOT_SIGNATURE_DESC root_signature_description;
+            root_signature_description.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
+            root_signature_description.Desc_1_1.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
+            /*D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT | 
+            D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
+            D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
+            D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;*/
+            root_signature_description.Desc_1_1.NumParameters = sizeof(root_parameters) / sizeof(D3D12_ROOT_PARAMETER1);
+            root_signature_description.Desc_1_1.pParameters = root_parameters;
+            root_signature_description.Desc_1_1.NumStaticSamplers = 0;
+            root_signature_description.Desc_1_1.pStaticSamplers = 0;
+            
+            ID3DBlob* signature = 0;
+            ID3DBlob* error = 0;
+            
+            if(D3D12SerializeVersionedRootSignature(&root_signature_description, &signature, &error) != S_OK)
+            {
+                char* error_string = (char*)error->GetBufferPointer();
+                REPORT_ERROR(error_string);
+                error->Release();
+                error = 0;
+            }
+            if(device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&cull_compute_root_signature)) != S_OK)
+            {
+                char* error_string = (char*)error->GetBufferPointer();
+                REPORT_ERROR(error_string);
+                error->Release();
+                error = 0;
+            }
+            if(signature)
+            {
+                signature->Release();
+                signature = 0;
+            }
+        }
+        
+        
+        D3D12_DESCRIPTOR_HEAP_DESC heap_desc = {};
+		heap_desc.NumDescriptors = back_buffer_count * 2;
+		heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+        
+        MUST_SUCCEED(device->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(&draw_call_info_buffer_heap)));
+        D3D12_CPU_DESCRIPTOR_HANDLE heap_handle = draw_call_info_buffer_heap->GetCPUDescriptorHandleForHeapStart();
+        
+        D3D12_SHADER_RESOURCE_VIEW_DESC srv_description = {};
+        srv_description.Format = DXGI_FORMAT_UNKNOWN;
+        srv_description.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+        srv_description.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srv_description.Buffer.NumElements = MAX_NUM_DRAW_CALLS;
+        srv_description.Buffer.StructureByteStride = sizeof(DrawCallInfo);
+        srv_description.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+        
+        for(u32 i = 0; i < back_buffer_count; ++i)
+        {
+            draw_call_info_buffers[i] = create_buffer(sizeof(DrawCallInfo)*MAX_NUM_DRAW_CALLS);
+            //srv_description.Buffer.FirstElement = i * MAX_NUM_DRAW_CALLS;
+            device->CreateShaderResourceView(draw_call_info_buffers[i].resource, &srv_description, heap_handle);
+            heap_handle.ptr += device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        }
+        
+        /*
+        for(u32 i = 0; i < back_buffer_count; ++i)
+        {
+            draw_call_argument_buffers[i] = create_buffer(sizeof(DrawArguments)*MAX_NUM_DRAW_CALLS, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
+            //srv_description.Buffer.FirstElement = i * MAX_NUM_DRAW_CALLS;
+            device->CreateShaderResourceView(draw_call_argument_buffers[i].resource, &srv_description, heap_handle);
+            heap_handle.ptr += device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        }
+        */
+        for(u32 i = 0; i < back_buffer_count; ++i)
+        {
+            u32 size_in_bytes = sizeof(DrawArguments) * MAX_NUM_DRAW_CALLS;
+            D3D12_HEAP_PROPERTIES heap_properties = {};
+            heap_properties.Type = D3D12_HEAP_TYPE_DEFAULT;
+            heap_properties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+            heap_properties.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+            heap_properties.CreationNodeMask = 1;
+            heap_properties.VisibleNodeMask = 1;
+            
+            D3D12_RESOURCE_DESC resource_description = {};
+            resource_description.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+            resource_description.Alignment = 0;
+            resource_description.Width = size_in_bytes;
+            resource_description.Height = 1;
+            resource_description.DepthOrArraySize = 1;
+            resource_description.MipLevels = 1;
+            resource_description.Format = DXGI_FORMAT_UNKNOWN;
+            resource_description.SampleDesc.Count = 1;
+            resource_description.SampleDesc.Quality = 0;
+            resource_description.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+            resource_description.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+            
+            MUST_SUCCEED(device->CreateCommittedResource(&heap_properties, D3D12_HEAP_FLAG_NONE, &resource_description, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT, nullptr, IID_PPV_ARGS(&draw_call_argument_buffers[i].resource)));
+            
+            D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {};
+            uav_desc.Format = DXGI_FORMAT_UNKNOWN;
+            uav_desc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+            uav_desc.Buffer.FirstElement = 0;
+            uav_desc.Buffer.NumElements = MAX_NUM_DRAW_CALLS;
+            uav_desc.Buffer.StructureByteStride = sizeof(DrawArguments);
+            //uav_desc.Buffer.CounterOffsetInBytes = sizeof(DrawArguments)*MAX_NUM_DRAW_CALLS;
+            uav_desc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
+            
+            device->CreateUnorderedAccessView(draw_call_argument_buffers[i].resource, nullptr, &uav_desc,
+                                              heap_handle);
+            heap_handle.ptr += device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        }
+        
+        
+        D3D12_COMPUTE_PIPELINE_STATE_DESC compute_pipeline_description = {};
+        compute_pipeline_description.pRootSignature = cull_compute_root_signature;
+        compute_pipeline_description.CS = shader_byte_code;
+        compute_pipeline_description.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+        
+        MUST_SUCCEED(device->CreateComputePipelineState(&compute_pipeline_description, IID_PPV_ARGS(&cull_compute_pipeline_state)));
+    }
+    
+    
 	ID3D12PipelineState* initial_pipeline_state = 0;
 	
 	MUST_SUCCEED(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, command_allocator, initial_pipeline_state, IID_PPV_ARGS(&command_list)));
@@ -1037,42 +1252,15 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
 
 void draw(f64 dt)
 {
+	//Sleep(500);
+
 	MUST_SUCCEED(command_allocator->Reset());
 	MUST_SUCCEED(command_list->Reset(command_allocator, 0));
     
 	{
 		command_list->EndQuery(timestamp_query_heap, D3D12_QUERY_TYPE_TIMESTAMP, 0);
 	}
-    
-	command_list->SetPipelineState(pipeline_state);
-	
-	
-    transition(command_list, render_targets[frame_index], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-    
-    
-	command_list->SetGraphicsRootSignature(root_signature);
-	
-	
-    
-	ID3D12DescriptorHeap* descriptor_heaps[] = { vertex_buffer_heap };
-	command_list->SetDescriptorHeaps(_countof(descriptor_heaps), descriptor_heaps);
-	command_list->SetGraphicsRootDescriptorTable(0, vertex_buffer_heap->GetGPUDescriptorHandleForHeapStart());
-    
-	render_target_view_handle = {render_target_view_heap->GetCPUDescriptorHandleForHeapStart()};
-	render_target_view_handle.ptr += frame_index * render_target_view_descriptor_size;
-	
-	D3D12_CPU_DESCRIPTOR_HANDLE depth_stencil_target_view_handle = { depth_stencil_descriptor_heap->GetCPUDescriptorHandleForHeapStart() };
-	depth_stencil_target_view_handle.ptr += frame_index * depth_stencil_target_descriptor_size;
-    
-	command_list->OMSetRenderTargets(1, &render_target_view_handle, FALSE, &depth_stencil_target_view_handle);
-	
-	
-	f32 clear_colour[]  {0.03f, 0.19f, 0.22f, 1.0f};
-	command_list->RSSetViewports(1, &viewport);
-	command_list->RSSetScissorRects(1, &surface_rect);
-	command_list->ClearRenderTargetView(render_target_view_handle, clear_colour, 0, nullptr);
-	command_list->ClearDepthStencilView(depth_stencil_target_view_handle, D3D12_CLEAR_FLAG_DEPTH, 0.0f, 0, 0, nullptr);
-	command_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
     
     
 	static f64 time = 0.0f;
@@ -1106,25 +1294,32 @@ void draw(f64 dt)
 	
 	target = {};
 	global_data.view = look_at(cam_pos, target, { 0.0f, 1.0f, 0.0f });
-	global_data.time = (f32)time;
-    
-	command_list->SetGraphicsRoot32BitConstants(2, (sizeof(global_data) + 3) / 4, &global_data, 0);
+	
     
 	srand(101);
     
-	
-    
 	f32 h_range = 100.0f;
 	f32 y_range = 25.0f;
+    global_data.time = (f32)time;
     
     bool execute_indirect = true;
     
-    if(execute_indirect) {
-        Buffer* buffer = &draw_call_buffers[frame_index];
+    if(execute_indirect && 1)
+    {//Fill the draw call argument buffer
+        command_list->SetPipelineState(cull_compute_pipeline_state);
+        command_list->SetComputeRootSignature(cull_compute_root_signature);
         
-        {//We fill the buffer here but in theory this could be done elsewhere on another thread or whatever?
-            DrawCallArguments* args = draw_call_arguments[frame_index];
-            *args = {};
+        
+        ID3D12DescriptorHeap* descriptor_heaps[] = { draw_call_info_buffer_heap};
+        command_list->SetDescriptorHeaps(_countof(descriptor_heaps), descriptor_heaps);
+        D3D12_GPU_DESCRIPTOR_HANDLE heap_handle = draw_call_info_buffer_heap->GetGPUDescriptorHandleForHeapStart();
+        command_list->SetComputeRootDescriptorTable(0, heap_handle);
+        //command_list->SetComputeRootDescriptorTable(1, heap_handle);
+        
+        {
+            //We fill the buffer here but in theory this could be done elsewhere on another thread or whatever?
+            DrawCallInfo* infos = draw_call_infos[frame_index];
+            *infos = {};
             
             triangle_count = 0;
             for(u32 i = 0; i < draw_count; ++i)
@@ -1132,25 +1327,77 @@ void draw(f64 dt)
                 u32 mesh_index = rand() % mesh_count;
                 Mesh& mesh = meshes[mesh_index];
                 
-                args[i].indexed.IndexCountPerInstance = mesh.index_count;
-                args[i].indexed.InstanceCount = 1;
-                args[i].index_buffer_view = mesh.index_buffer_view;
+                infos[i].triangle_count = mesh.index_count / 3;
+                infos[i].index_buffer_view = mesh.index_buffer_view;
                 
                 DrawInfo draw_info = {};
                 draw_info.position = { rand_f32_in_range(-h_range, h_range, &rng), rand_f32_in_range(-y_range, y_range, &rng), rand_f32_in_range(-h_range, h_range, &rng) };
                 draw_info.quat = { rand_f32_in_range(-1.0, 1.0, &rng), rand_f32_in_range(-1.0, 1.0, &rng), rand_f32_in_range(-1.0, 1.0, &rng), rand_f32_in_range(-1.0, 1.0, &rng) };
+
+/*
+				draw_info.position.x = 6969.420f;
+				draw_info.position.y = 2222.220f;
+				draw_info.position.z = 3003.999f;
+*/
+
                 draw_info.quat = normalize(draw_info.quat);
                 draw_info.vertex_buffer_index = mesh_index;
                 
-                args[i].draw_info = draw_info;
+                infos[i].draw_info = draw_info;
                 
                 triangle_count += mesh.index_count / 3;
             }
             
-            u64 data_size_in_bytes = sizeof(DrawCallArguments) * draw_count;
-            upload_to_buffer(&draw_call_buffers[frame_index], draw_call_arguments[frame_index], data_size_in_bytes, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
+            u64 data_size_in_bytes = sizeof(DrawCallInfo) * draw_count;	
+            upload_to_buffer(&draw_call_info_buffers[frame_index], draw_call_infos[frame_index], data_size_in_bytes, D3D12_RESOURCE_STATE_GENERIC_READ);
+            
+            
+			transition(command_list, draw_call_argument_buffers[frame_index].resource, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            //TODO(Andrew): properly fence and separate this out. It's currently on a different command list!
+            command_list->Dispatch(draw_count, 1, 1);
+            transition(command_list, draw_call_argument_buffers[frame_index].resource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
         }
-        
+    }
+    
+    
+	command_list->SetPipelineState(pipeline_state);
+	
+    transition(command_list, render_targets[frame_index], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+    
+	command_list->SetGraphicsRootSignature(root_signature);
+	
+	
+    
+	ID3D12DescriptorHeap* descriptor_heaps[] = { vertex_buffer_heap };
+	command_list->SetDescriptorHeaps(_countof(descriptor_heaps), descriptor_heaps);
+	command_list->SetGraphicsRootDescriptorTable(0, vertex_buffer_heap->GetGPUDescriptorHandleForHeapStart());
+    
+	render_target_view_handle = {render_target_view_heap->GetCPUDescriptorHandleForHeapStart()};
+	render_target_view_handle.ptr += frame_index * render_target_view_descriptor_size;
+	
+	D3D12_CPU_DESCRIPTOR_HANDLE depth_stencil_target_view_handle = { depth_stencil_descriptor_heap->GetCPUDescriptorHandleForHeapStart() };
+	depth_stencil_target_view_handle.ptr += frame_index * depth_stencil_target_descriptor_size;
+    
+	command_list->OMSetRenderTargets(1, &render_target_view_handle, FALSE, &depth_stencil_target_view_handle);
+	
+	
+	f32 clear_colour[]  {0.03f, 0.19f, 0.22f, 1.0f};
+	command_list->RSSetViewports(1, &viewport);
+	command_list->RSSetScissorRects(1, &surface_rect);
+	command_list->ClearRenderTargetView(render_target_view_handle, clear_colour, 0, nullptr);
+	command_list->ClearDepthStencilView(depth_stencil_target_view_handle, D3D12_CLEAR_FLAG_DEPTH, 0.0f, 0, 0, nullptr);
+	command_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    
+    
+	command_list->SetGraphicsRoot32BitConstants(2, (sizeof(global_data) + 3) / 4, &global_data, 0);
+    
+    if(execute_indirect && 1) {
+        Buffer* buffer = &draw_call_argument_buffers[frame_index];
+
+		//check command_signature
+		//check that we don't need to be be passing anything non-null to pCountBuffer
+		//check that the DrawCommandArgument struct is equivalent in C++ code and GPU
+
         command_list->ExecuteIndirect(command_signature, draw_count, buffer->resource, 0, nullptr, 0);
     } else {
         triangle_count = 0;
@@ -1462,6 +1709,8 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdArgs,
 	
 	HWND console_window = GetConsoleWindow();
 #endif
+
+	printf("Sizeof DrawArguments %llu\n", sizeof(DrawArguments));
 	
 	LPCSTR window_class_name = "DirectX12";
 	LPCSTR window_title = "DirectX12 Viewer";

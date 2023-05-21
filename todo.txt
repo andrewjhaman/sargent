@@ -1,6 +1,7 @@
 	TODO:
 --------------
 - Implement compute shader draw dispatch and profile
+- Integrate Nsight Aftermath SDK
 - Frustum cull in dispatch shader and profile
 - Implement texturing
 - Implement multiple render targets (output normal)

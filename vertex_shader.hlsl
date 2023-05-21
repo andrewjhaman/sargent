@@ -9,9 +9,12 @@ struct VertexOutput
 
 struct DrawInfo
 {
-	uint vertex_buffer_index;
-	float3 position;
 	float4 quat;
+	float3 position;
+	uint vertex_buffer_index;
+	uint __packing_a;
+	uint __packing_b;
+	uint __packing_c;
 };
 
 struct Globals
