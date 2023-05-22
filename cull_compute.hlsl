@@ -67,10 +67,7 @@ void main (uint3 dispatch_thread_id : SV_DispatchThreadID)
         return;
 
 	//for now, just pass everything through
-	DrawCallInfo draw_call_info;
-	draw_call_info.draw_info = input_draw_calls[input_index].draw_info;
-	draw_call_info.index_buffer_view = input_draw_calls[input_index].index_buffer_view;
-	draw_call_info.triangle_count = input_draw_calls[input_index].triangle_count;
+	DrawCallInfo draw_call_info = input_draw_calls[input_index];
 
 	DrawArguments result;
 	result.index_buffer_view = draw_call_info.index_buffer_view;

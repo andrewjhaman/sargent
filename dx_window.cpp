@@ -1304,7 +1304,7 @@ void draw(f64 dt)
     
     bool execute_indirect = true;
     
-    if(execute_indirect && 1)
+    if(execute_indirect)
     {//Fill the draw call argument buffer
         command_list->SetPipelineState(cull_compute_pipeline_state);
         command_list->SetComputeRootSignature(cull_compute_root_signature);
@@ -1313,6 +1313,7 @@ void draw(f64 dt)
         ID3D12DescriptorHeap* descriptor_heaps[] = { draw_call_info_buffer_heap};
         command_list->SetDescriptorHeaps(_countof(descriptor_heaps), descriptor_heaps);
         D3D12_GPU_DESCRIPTOR_HANDLE heap_handle = draw_call_info_buffer_heap->GetGPUDescriptorHandleForHeapStart();
+		heap_handle.ptr += device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) * frame_index;
         command_list->SetComputeRootDescriptorTable(0, heap_handle);
         //command_list->SetComputeRootDescriptorTable(1, heap_handle);
         
@@ -1333,12 +1334,6 @@ void draw(f64 dt)
                 DrawInfo draw_info = {};
                 draw_info.position = { rand_f32_in_range(-h_range, h_range, &rng), rand_f32_in_range(-y_range, y_range, &rng), rand_f32_in_range(-h_range, h_range, &rng) };
                 draw_info.quat = { rand_f32_in_range(-1.0, 1.0, &rng), rand_f32_in_range(-1.0, 1.0, &rng), rand_f32_in_range(-1.0, 1.0, &rng), rand_f32_in_range(-1.0, 1.0, &rng) };
-
-/*
-				draw_info.position.x = 6969.420f;
-				draw_info.position.y = 2222.220f;
-				draw_info.position.z = 3003.999f;
-*/
 
                 draw_info.quat = normalize(draw_info.quat);
                 draw_info.vertex_buffer_index = mesh_index;
@@ -1391,13 +1386,8 @@ void draw(f64 dt)
     
 	command_list->SetGraphicsRoot32BitConstants(2, (sizeof(global_data) + 3) / 4, &global_data, 0);
     
-    if(execute_indirect && 1) {
+    if(execute_indirect) {
         Buffer* buffer = &draw_call_argument_buffers[frame_index];
-
-		//check command_signature
-		//check that we don't need to be be passing anything non-null to pCountBuffer
-		//check that the DrawCommandArgument struct is equivalent in C++ code and GPU
-
         command_list->ExecuteIndirect(command_signature, draw_count, buffer->resource, 0, nullptr, 0);
     } else {
         triangle_count = 0;
