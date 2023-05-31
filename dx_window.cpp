@@ -1065,12 +1065,20 @@ void init_directx12(HWND window)
             ranges[2].OffsetInDescriptorsFromTableStart = back_buffer_count * 2;//@sus
             ranges[2].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE;
 
-            D3D12_ROOT_PARAMETER1 root_parameters[1];
+
+            D3D12_ROOT_PARAMETER1 root_parameters[2];
             root_parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
             root_parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
             root_parameters[0].DescriptorTable.NumDescriptorRanges = _countof(ranges);
             root_parameters[0].DescriptorTable.pDescriptorRanges = ranges;
             
+				
+			root_parameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+			root_parameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+			root_parameters[1].Constants.ShaderRegister = 2;
+			root_parameters[1].Constants.RegisterSpace  = 0;
+			root_parameters[1].Constants.Num32BitValues = (sizeof(ShaderGlobals) + 3) / 4;
+			
             
             
             D3D12_VERSIONED_ROOT_SIGNATURE_DESC root_signature_description;
@@ -1080,7 +1088,7 @@ void init_directx12(HWND window)
             D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
             D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
             D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;*/
-            root_signature_description.Desc_1_1.NumParameters = sizeof(root_parameters) / sizeof(D3D12_ROOT_PARAMETER1);
+            root_signature_description.Desc_1_1.NumParameters = _countof(root_parameters);
             root_signature_description.Desc_1_1.pParameters = root_parameters;
             root_signature_description.Desc_1_1.NumStaticSamplers = 0;
             root_signature_description.Desc_1_1.pStaticSamplers = 0;
@@ -1283,13 +1291,9 @@ void draw(f64 dt)
 	u32 draw_count = 1250;
     
 	ShaderGlobals global_data = {};
+
     
-	f32 fov = 70.0 * 3.14159265 / 180.0;
-	f32 e = 1.0 / tanf(fov * 0.5f);
-	f32 a = f32(window_width) / f32(window_height);
-	f32 n = 0.01f;
-    
-	global_data.projection = perspective_infinite_reversed_z(70.0f, 0.01f, (f32)window_width, (f32)window_height);
+	global_data.projection = perspective_infinite_reversed_z(70.0, 0.01f, (f32)window_width, (f32)window_height);
     
 	
 	vec3 cam_pos = Vec3(sinf((f32)time), 0.0f, cosf((f32)time));
@@ -1326,10 +1330,10 @@ void draw(f64 dt)
 		heap_handle.ptr += device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) * frame_index;
         command_list->SetComputeRootDescriptorTable(0, heap_handle);        
 
+		command_list->SetComputeRoot32BitConstants(1, (sizeof(global_data) + 3) / 4, &global_data, 0);
 
 		transition(command_list, draw_call_argument_buffers[frame_index].resource, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT, D3D12_RESOURCE_STATE_COPY_DEST);
 		command_list->CopyBufferRegion(draw_call_argument_buffers[frame_index].resource, command_buffer_offset_to_counter, draw_call_argument_count_reset_buffer, 0, sizeof(u32));
-
 
         {
 
@@ -1415,8 +1419,8 @@ void draw(f64 dt)
     
     if(execute_indirect) {
         Buffer* buffer = &draw_call_argument_buffers[frame_index];
-        //command_list->ExecuteIndirect(command_signature, draw_count, buffer->resource, 0, buffer->resource, buffer->size_in_bytes);
-		command_list->ExecuteIndirect(command_signature, draw_count, buffer->resource, 0, nullptr, 0);
+        command_list->ExecuteIndirect(command_signature, draw_count, buffer->resource, 0, buffer->resource, buffer->size_in_bytes);
+		// command_list->ExecuteIndirect(command_signature, draw_count, buffer->resource, 0, nullptr, 0);
     } else {
         triangle_count = 0;
         for (u32 i = 0; i < draw_count; ++i)

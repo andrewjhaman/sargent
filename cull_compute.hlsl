@@ -51,6 +51,20 @@ struct DrawArguments {
 StructuredBuffer<DrawCallInfo> input_draw_calls : register(t0, BUFFER_SPACE);
 AppendStructuredBuffer<DrawArguments> output_argument_buffer : register(u0, BUFFER_SPACE);
 
+struct Globals
+{
+	row_major float4x4 projection;
+	row_major float4x4 view;
+	float time;
+};
+cbuffer GlobalBindings : register(b2, space0)
+{
+	Globals globals;
+};
+
+
+
+
 [numthreads(64, 1, 1)]
 void main (uint3 dispatch_thread_id : SV_DispatchThreadID)
 {
@@ -64,8 +78,46 @@ void main (uint3 dispatch_thread_id : SV_DispatchThreadID)
     if (input_index >= num_draw_calls)
         return;
 
-	//for now, just pass everything through
 	DrawCallInfo draw_call_info = input_draw_calls[input_index];
+
+	float4x4 mat = globals.projection;
+
+	float4 row_1 = mat[0];
+	float4 row_2 = mat[1];
+	float4 row_3 = mat[2];
+	float4 row_4 = mat[3];
+
+	float4 frustum_planes[6];
+	frustum_planes[0] = row_4+row_1;
+	frustum_planes[1] = row_4-row_1;
+	frustum_planes[2] = row_4+row_2;
+	frustum_planes[3] = row_4-row_2;
+	frustum_planes[4] = row_4;
+	frustum_planes[5] = row_4+row_3;
+
+	float4 p = float4(draw_call_info.draw_info.position.x, draw_call_info.draw_info.position.y, draw_call_info.draw_info.position.z, 1.0);
+	p = mul(globals.view,p);
+
+	bool is_visible = true;
+
+	bool inside = true;
+	for(int i = 0; i < 5; ++i) {
+		if (dot(p, frustum_planes[i]) >= 0.0) {
+			inside = true;
+			break;
+		}
+
+		// inside = inside && dot(p, frustum_planes[i]) >= 0.0;
+	}
+	is_visible = is_visible && inside;
+
+	if(!is_visible) {
+		return;
+	}
+
+	// if(draw_call_info.draw_info.position.x > 0.0) return;
+
+
 
 	DrawArguments result;
 
