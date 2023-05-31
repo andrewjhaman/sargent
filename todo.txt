@@ -1,6 +1,7 @@
 	TODO:
 --------------
-- Implement compute shader draw dispatch and profile
+- Figure out why the input data to the compute shader is missing for about half the time
+- Pass correct Draw Count out of cull_compute
 - Integrate Nsight Aftermath SDK
 - Frustum cull in dispatch shader and profile
 - Implement texturing
@@ -35,3 +36,4 @@
 - Pre-Process meshes using mesh_optimizer.h and profile
 - Factor out a Resource transition function
 - Add an ExecuteIndirect path
+- Implement compute shader draw dispatch

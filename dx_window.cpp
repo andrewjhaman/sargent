@@ -76,7 +76,7 @@ bool _must_succeed(HRESULT result) {
 	return true;
 }
 
-#define REPORT_ERROR(message) do { char __message_buffer[4096*2]; snprintf(__message_buffer, sizeof(__message_buffer), "l:%d: %s", __LINE__, message); MessageBoxEx(0, __message_buffer, "Sargent Renderer Error!", 0, 0); ExitProcess(1); } while (0);
+#define REPORT_ERROR(message) do { char __message_buffer[4096*2]; snprintf(__message_buffer, sizeof(__message_buffer), "l:%d: %s", __LINE__, message); MessageBoxEx(0, __message_buffer, (LPCSTR)"Sargent Renderer Error!", 0, 0); ExitProcess(1); } while (0);
 #define MUST_SUCCEED(result) assert(_must_succeed(result))
 
 
@@ -168,6 +168,7 @@ Buffer vertex_buffer_2;
 ID3D12QueryHeap* timestamp_query_heap;
 Buffer timestamp_query_result_buffer;
 
+constexpr u32 ZERO = 0;
 
 constexpr u32 MAX_NUM_DRAW_CALLS = 4096;
 ID3D12CommandSignature* command_signature;
@@ -182,21 +183,21 @@ struct alignas(16) DrawCallInfo {
 
 
 struct alignas(16) D3D12_DRAW_INDEXED_ARGUMENTS_ALIGNED
-    {
+{
     UINT IndexCountPerInstance;
     UINT InstanceCount;
     UINT StartIndexLocation;
     INT BaseVertexLocation;
     UINT StartInstanceLocation;
-    };
+};
 
 
 struct alignas(16)  D3D12_INDEX_BUFFER_VIEW_ALIGNED
-    {
+{
     D3D12_GPU_VIRTUAL_ADDRESS BufferLocation;
     UINT SizeInBytes;
     DXGI_FORMAT Format;
-    };
+};
 
 struct alignas(16) DrawArguments {
     D3D12_INDEX_BUFFER_VIEW_ALIGNED index_buffer_view;
@@ -205,11 +206,12 @@ struct alignas(16) DrawArguments {
 };
 
 
-
+int command_buffer_offset_to_counter;
 ID3D12DescriptorHeap* draw_call_info_buffer_heap;
 ID3D12DescriptorHeap* argument_buffer_heap;
 Buffer draw_call_info_buffers[back_buffer_count];
 Buffer draw_call_argument_buffers[back_buffer_count];
+ID3D12Resource* draw_call_argument_count_reset_buffer;//literally just a value containing a single 0, so that we can copy it to another buffer 🤡
 
 DrawCallInfo draw_call_infos[back_buffer_count][MAX_NUM_DRAW_CALLS];
 
@@ -261,7 +263,7 @@ Buffer create_readback_buffer(size_t size_in_bytes)
 
 
 
-Buffer create_buffer(size_t size_in_bytes, D3D12_RESOURCE_STATES end_state = D3D12_RESOURCE_STATE_COPY_DEST)
+Buffer create_buffer(size_t size_in_bytes, D3D12_RESOURCE_STATES end_state = D3D12_RESOURCE_STATE_COPY_DEST, wchar_t* name = 0)
 {
 	Buffer result = {};
     
@@ -292,6 +294,10 @@ Buffer create_buffer(size_t size_in_bytes, D3D12_RESOURCE_STATES end_state = D3D
 	heap_properties.Type = D3D12_HEAP_TYPE_UPLOAD;
 	MUST_SUCCEED(device->CreateCommittedResource(&heap_properties, D3D12_HEAP_FLAG_NONE, &resource_description, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&result.upload_resource)));
     
+	if (name) {
+		result.resource->SetName(name);
+	}
+
 	return result;
 }
 
@@ -365,54 +371,6 @@ struct Mesh
 
 Mesh meshes[4096];
 u32 mesh_count;
-
-#if 0
-Mesh load_obj(char* filename)
-{
-	Mesh result = {};
-    
-	ParsedOBJ obj = LoadOBJ(filename);
-	assert(obj.renderable_count == 1);
-	ParsedOBJRenderable renderable = obj.renderables[0];
-	//Vertex* vertex_buffer_data = (Vertex*)renderable.vertices;
-	Vertex* vertex_buffer_data = new Vertex[renderable.vertex_count];
-    
-	for (u32 i = 0; i < renderable.vertex_count; i++)
-	{
-		vertex_buffer_data[i].position[0] = renderable.vertices[i*8+0];
-		vertex_buffer_data[i].position[1] = renderable.vertices[i*8+1];
-		vertex_buffer_data[i].position[2] = renderable.vertices[i*8+2];
-        
-		vertex_buffer_data[i].normal[0] = renderable.vertices[i*8+3+2];
-		vertex_buffer_data[i].normal[1] = renderable.vertices[i*8+4+2];
-		vertex_buffer_data[i].normal[2] = renderable.vertices[i*8+5+2];
-	}
-	u32 vertex_buffer_size = sizeof(Vertex) * renderable.vertex_count;
-    
-	result.vertex_buffer = create_buffer(sizeof(Vertex)*renderable.vertex_count);
-	result.vertex_count = renderable.vertex_count;
-	upload_to_buffer(&result.vertex_buffer, vertex_buffer_data, vertex_buffer_size);
-    
-	result.index_count = renderable.index_count;
-	u32* index_buffer_data = (u32*)renderable.indices;
-	u32 index_buffer_size = sizeof(u32) * renderable.index_count;
-    
-    
-	result.index_buffer = create_buffer(index_buffer_size);
-    
-	upload_to_buffer(&result.index_buffer, index_buffer_data, index_buffer_size, D3D12_RESOURCE_STATE_INDEX_BUFFER);
-    
-	result.index_buffer_view.BufferLocation = result.index_buffer.resource->GetGPUVirtualAddress();
-	result.index_buffer_view.Format = DXGI_FORMAT_R32_UINT;
-	result.index_buffer_view.SizeInBytes = index_buffer_size;
-    
-	delete [] vertex_buffer_data;
-	FreeParsedOBJ(&obj);
-    
-	return result;
-}
-#endif
-
 
 void load_obj(char* filename, Vertex** vertices_out, size_t* vertices_count_out)
 {
@@ -948,7 +906,7 @@ void init_directx12(HWND window)
 	LPCWSTR pixel_shader_path = L"pixel_shader.hlsl";
 	LPCWSTR pixel_shader_args[] =
 	{
-		vertex_shader_path,
+		pixel_shader_path,
 		L"-E", L"main",
 		L"-T", L"ps_6_3",
 		L"-Zi"
@@ -1042,7 +1000,7 @@ void init_directx12(HWND window)
     
     
     
-    {
+    {//Cull/ExecuteIndirect Fill Compute Shader
         D3D12_SHADER_BYTECODE shader_byte_code;
         
         {
@@ -1051,7 +1009,7 @@ void init_directx12(HWND window)
             {
                 shader_path,
                 L"-E", L"main",
-                L"-T", L"cs_6_3",//6_5 is latest supported by my 1060, 6_3 latest on the surface (intel 520)
+                L"-T", L"cs_6_5",//6_5 is latest supported by my 1060, 6_3 latest on the surface (intel 520)
                 L"-Zi"
             };
             IDxcBlobEncoding* source_pointer = 0;
@@ -1085,7 +1043,7 @@ void init_directx12(HWND window)
         
         
         {//Create the Root Signature
-            D3D12_DESCRIPTOR_RANGE1 ranges[2];
+            D3D12_DESCRIPTOR_RANGE1 ranges[3];
             ranges[0].RegisterSpace = 0;
             ranges[0].BaseShaderRegister = 0;
             ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
@@ -1096,10 +1054,17 @@ void init_directx12(HWND window)
             ranges[1].RegisterSpace = 0;
             ranges[1].BaseShaderRegister = 0;
             ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-            ranges[1].NumDescriptors = UINT_MAX;
+            ranges[1].NumDescriptors = 1;
             ranges[1].OffsetInDescriptorsFromTableStart = back_buffer_count;
             ranges[1].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE;
             
+            ranges[2].RegisterSpace = 0;
+            ranges[2].BaseShaderRegister = 1;
+            ranges[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+            ranges[2].NumDescriptors = 1;
+            ranges[2].OffsetInDescriptorsFromTableStart = back_buffer_count * 2;//@sus
+            ranges[2].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE;
+
             D3D12_ROOT_PARAMETER1 root_parameters[1];
             root_parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
             root_parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
@@ -1164,23 +1129,26 @@ void init_directx12(HWND window)
         for(u32 i = 0; i < back_buffer_count; ++i)
         {
             draw_call_info_buffers[i] = create_buffer(sizeof(DrawCallInfo)*MAX_NUM_DRAW_CALLS);
-            //srv_description.Buffer.FirstElement = i * MAX_NUM_DRAW_CALLS;
+
+            // srv_description.Buffer.FirstElement = i * MAX_NUM_DRAW_CALLS; @sus
             device->CreateShaderResourceView(draw_call_info_buffers[i].resource, &srv_description, heap_handle);
             heap_handle.ptr += device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
         }
         
-        /*
+		//Output Argument Buffer
         for(u32 i = 0; i < back_buffer_count; ++i)
         {
-            draw_call_argument_buffers[i] = create_buffer(sizeof(DrawArguments)*MAX_NUM_DRAW_CALLS, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
-            //srv_description.Buffer.FirstElement = i * MAX_NUM_DRAW_CALLS;
-            device->CreateShaderResourceView(draw_call_argument_buffers[i].resource, &srv_description, heap_handle);
-            heap_handle.ptr += device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-        }
-        */
-        for(u32 i = 0; i < back_buffer_count; ++i)
-        {
+
+			auto align_for_uav_counter = [] (UINT buffer_size)
+			{
+				const UINT alignment = D3D12_UAV_COUNTER_PLACEMENT_ALIGNMENT;
+				return (buffer_size + (alignment - 1)) & ~(alignment - 1);
+			};
+
             u32 size_in_bytes = sizeof(DrawArguments) * MAX_NUM_DRAW_CALLS;
+
+			command_buffer_offset_to_counter = align_for_uav_counter(size_in_bytes);
+
             D3D12_HEAP_PROPERTIES heap_properties = {};
             heap_properties.Type = D3D12_HEAP_TYPE_DEFAULT;
             heap_properties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
@@ -1191,7 +1159,7 @@ void init_directx12(HWND window)
             D3D12_RESOURCE_DESC resource_description = {};
             resource_description.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
             resource_description.Alignment = 0;
-            resource_description.Width = size_in_bytes;
+            resource_description.Width = command_buffer_offset_to_counter + sizeof(u32);
             resource_description.Height = 1;
             resource_description.DepthOrArraySize = 1;
             resource_description.MipLevels = 1;
@@ -1203,21 +1171,64 @@ void init_directx12(HWND window)
             
             MUST_SUCCEED(device->CreateCommittedResource(&heap_properties, D3D12_HEAP_FLAG_NONE, &resource_description, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT, nullptr, IID_PPV_ARGS(&draw_call_argument_buffers[i].resource)));
             
+			draw_call_argument_buffers[i].size_in_bytes = sizeof(DrawArguments)*MAX_NUM_DRAW_CALLS;
+
             D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {};
             uav_desc.Format = DXGI_FORMAT_UNKNOWN;
             uav_desc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
             uav_desc.Buffer.FirstElement = 0;
             uav_desc.Buffer.NumElements = MAX_NUM_DRAW_CALLS;
             uav_desc.Buffer.StructureByteStride = sizeof(DrawArguments);
-            //uav_desc.Buffer.CounterOffsetInBytes = sizeof(DrawArguments)*MAX_NUM_DRAW_CALLS;
+            uav_desc.Buffer.CounterOffsetInBytes = command_buffer_offset_to_counter;
             uav_desc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
-            
-            device->CreateUnorderedAccessView(draw_call_argument_buffers[i].resource, nullptr, &uav_desc,
+
+            device->CreateUnorderedAccessView(draw_call_argument_buffers[i].resource, draw_call_argument_buffers[i].resource, &uav_desc,
                                               heap_handle);
             heap_handle.ptr += device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+			draw_call_argument_buffers[i].resource->SetName(i == 0 ? L"Output Argument Buffer 1" : L"Output Argument Buffer >1");
         }
         
+		{
+			// Allocate a buffer that can be used to reset the UAV counters and initialize
+			// it to 0.
+
+            D3D12_HEAP_PROPERTIES heap_properties = {};
+            heap_properties.Type = D3D12_HEAP_TYPE_UPLOAD;
+            heap_properties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+            heap_properties.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+            heap_properties.CreationNodeMask = 1;
+            heap_properties.VisibleNodeMask = 1;
+
+            D3D12_RESOURCE_DESC resource_description = {};
+            resource_description.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+            resource_description.Alignment = 0;
+            resource_description.Width = sizeof(u32);
+            resource_description.Height = 1;
+            resource_description.DepthOrArraySize = 1;
+            resource_description.MipLevels = 1;
+            resource_description.Format = DXGI_FORMAT_UNKNOWN;
+            resource_description.SampleDesc.Count = 1;
+            resource_description.SampleDesc.Quality = 0;
+            resource_description.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+            resource_description.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+
+			MUST_SUCCEED(device->CreateCommittedResource(&heap_properties, D3D12_HEAP_FLAG_NONE, &resource_description, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&draw_call_argument_count_reset_buffer)));
+
+			
+			D3D12_RANGE read_range = {};
+			void* upload_destination = 0;
+
+			MUST_SUCCEED(draw_call_argument_count_reset_buffer->Map(0, &read_range, (void**)&upload_destination));
+
+			memset(upload_destination, 0, sizeof(u32));
+			draw_call_argument_count_reset_buffer->Unmap(0, nullptr);
+			draw_call_argument_count_reset_buffer->SetName(L"Draw Call Argument Count Reset Buffer (Should hold a single 0)");
+		}
         
+
+
         D3D12_COMPUTE_PIPELINE_STATE_DESC compute_pipeline_description = {};
         compute_pipeline_description.pRootSignature = cull_compute_root_signature;
         compute_pipeline_description.CS = shader_byte_code;
@@ -1252,7 +1263,7 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
 
 void draw(f64 dt)
 {
-	//Sleep(500);
+	// Sleep(500);
 
 	MUST_SUCCEED(command_allocator->Reset());
 	MUST_SUCCEED(command_list->Reset(command_allocator, 0));
@@ -1270,7 +1281,6 @@ void draw(f64 dt)
 	advance_rng((&rng));
     
 	u32 draw_count = 1250;
-	
     
 	ShaderGlobals global_data = {};
     
@@ -1284,11 +1294,12 @@ void draw(f64 dt)
 	
 	vec3 cam_pos = Vec3(sinf((f32)time), 0.0f, cosf((f32)time));
 	cam_pos *= 10.0f;
-	//cam_pos.z -= time;
+	// cam_pos.z -= time;
+	// cam_pos = {0.1, 0.1, 0.1};
     
 	vec3 cam_dir = Vec3(sinf((f32)time), 0.0f, -2.0f);
 	cam_dir = normalize(cam_dir);
-	//cam_dir = { 0.0f, 0.0f, -1.0f };
+	// cam_dir = { 0.0f, 0.0f, -1.0f };
 	
 	vec3 target = cam_pos + cam_dir;
 	
@@ -1309,15 +1320,19 @@ void draw(f64 dt)
         command_list->SetPipelineState(cull_compute_pipeline_state);
         command_list->SetComputeRootSignature(cull_compute_root_signature);
         
-        
-        ID3D12DescriptorHeap* descriptor_heaps[] = { draw_call_info_buffer_heap};
+        ID3D12DescriptorHeap* descriptor_heaps[] = { draw_call_info_buffer_heap, };
         command_list->SetDescriptorHeaps(_countof(descriptor_heaps), descriptor_heaps);
         D3D12_GPU_DESCRIPTOR_HANDLE heap_handle = draw_call_info_buffer_heap->GetGPUDescriptorHandleForHeapStart();
 		heap_handle.ptr += device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) * frame_index;
-        command_list->SetComputeRootDescriptorTable(0, heap_handle);
-        //command_list->SetComputeRootDescriptorTable(1, heap_handle);
-        
+        command_list->SetComputeRootDescriptorTable(0, heap_handle);        
+
+
+		transition(command_list, draw_call_argument_buffers[frame_index].resource, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT, D3D12_RESOURCE_STATE_COPY_DEST);
+		command_list->CopyBufferRegion(draw_call_argument_buffers[frame_index].resource, command_buffer_offset_to_counter, draw_call_argument_count_reset_buffer, 0, sizeof(u32));
+
+
         {
+
             //We fill the buffer here but in theory this could be done elsewhere on another thread or whatever?
             DrawCallInfo* infos = draw_call_infos[frame_index];
             *infos = {};
@@ -1344,12 +1359,24 @@ void draw(f64 dt)
             }
             
             u64 data_size_in_bytes = sizeof(DrawCallInfo) * draw_count;	
-            upload_to_buffer(&draw_call_info_buffers[frame_index], draw_call_infos[frame_index], data_size_in_bytes, D3D12_RESOURCE_STATE_GENERIC_READ);
+
+
+			{	
+				D3D12_RANGE read_range = {};
+				void* upload_destination = 0;
+				
+				//TODO(Andrew): analyze performance characteristics of just using an upload heap here, instead of putting it into and upload heap then copying it to GPU resident memory.
+				MUST_SUCCEED(draw_call_info_buffers[frame_index].upload_resource->Map(0, &read_range, (void**)&upload_destination));
+				memcpy(upload_destination, draw_call_infos[frame_index], data_size_in_bytes);
+				draw_call_info_buffers[frame_index].upload_resource->Unmap(0, nullptr);
+				
+				command_list->CopyResource(draw_call_info_buffers[frame_index].resource, draw_call_info_buffers[frame_index].upload_resource);
+				transition(command_list, draw_call_info_buffers[frame_index].resource, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_GENERIC_READ);
+			}
+
             
-            
-			transition(command_list, draw_call_argument_buffers[frame_index].resource, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-            //TODO(Andrew): properly fence and separate this out. It's currently on a different command list!
-            command_list->Dispatch(draw_count, 1, 1);
+			transition(command_list, draw_call_argument_buffers[frame_index].resource, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            command_list->Dispatch(draw_count / 64, 1, 1);
             transition(command_list, draw_call_argument_buffers[frame_index].resource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
         }
     }
@@ -1388,7 +1415,8 @@ void draw(f64 dt)
     
     if(execute_indirect) {
         Buffer* buffer = &draw_call_argument_buffers[frame_index];
-        command_list->ExecuteIndirect(command_signature, draw_count, buffer->resource, 0, nullptr, 0);
+        //command_list->ExecuteIndirect(command_signature, draw_count, buffer->resource, 0, buffer->resource, buffer->size_in_bytes);
+		command_list->ExecuteIndirect(command_signature, draw_count, buffer->resource, 0, nullptr, 0);
     } else {
         triangle_count = 0;
         for (u32 i = 0; i < draw_count; ++i)
@@ -1415,14 +1443,13 @@ void draw(f64 dt)
     
     transition(command_list, render_targets[frame_index], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
     
-    
+	
 	{
 		command_list->EndQuery(timestamp_query_heap, D3D12_QUERY_TYPE_TIMESTAMP, 1);
 		command_list->ResolveQueryData(timestamp_query_heap, D3D12_QUERY_TYPE_TIMESTAMP, 0, 2, timestamp_query_result_buffer.resource, 0);
 	}
     
 	MUST_SUCCEED(command_list->Close());
-	
     
 	ID3D12CommandList* command_lists[] = {command_list};
 	command_queue->ExecuteCommandLists(1, command_lists);

@@ -49,14 +49,12 @@ struct DrawArguments {
 
 #define BUFFER_SPACE space0
 StructuredBuffer<DrawCallInfo> input_draw_calls : register(t0, BUFFER_SPACE);
-RWStructuredBuffer<DrawArguments> output_argument_buffer : register(u0, BUFFER_SPACE);
-
+AppendStructuredBuffer<DrawArguments> output_argument_buffer : register(u0, BUFFER_SPACE);
 
 [numthreads(64, 1, 1)]
 void main (uint3 dispatch_thread_id : SV_DispatchThreadID)
 {
 	uint input_index = dispatch_thread_id.x;
-    uint output_index = dispatch_thread_id.x;
 
 	uint num_draw_calls;
 	uint draw_call_stride;
@@ -70,6 +68,16 @@ void main (uint3 dispatch_thread_id : SV_DispatchThreadID)
 	DrawCallInfo draw_call_info = input_draw_calls[input_index];
 
 	DrawArguments result;
+
+	{
+		result.draw_info.__packing_a = 0;
+		result.draw_info.__packing_b = 0;
+		result.draw_info.__packing_c = 0;
+		result.draw_info.__packing_d = 0;
+		result.packing_a = 0;
+		result.packing_b = 0;
+	}
+
 	result.index_buffer_view = draw_call_info.index_buffer_view;
 	result.draw_info = draw_call_info.draw_info;
 	result.indexed.IndexCountPerInstance = draw_call_info.triangle_count * 3;
@@ -78,7 +86,7 @@ void main (uint3 dispatch_thread_id : SV_DispatchThreadID)
 	result.indexed.BaseVertexLocation = 0;
 	result.indexed.StartInstanceLocation = 0;
 
-	output_argument_buffer[output_index].draw_info = result.draw_info;
-	output_argument_buffer[output_index].indexed = result.indexed;
-	output_argument_buffer[output_index].index_buffer_view = result.index_buffer_view;
+
+
+	output_argument_buffer.Append(result);
 }
