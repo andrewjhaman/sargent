@@ -136,15 +136,12 @@ UINT64 upload_fence_value;
 f64 gpu_ticks_per_second = 1.0;
 
 
-
+#pragma pack(push, 4)
 struct alignas(16) DrawInfo
 {
 	vec4 quat;
 	vec3 position;
-	u32 vertex_buffer_index;
-	u32 __packing_a;
-	u32 __packing_b;
-	u32 __packing_c;
+	u32 vertex_buffer_index;	
 };
 
 struct alignas(16) ShaderGlobals
@@ -153,6 +150,9 @@ struct alignas(16) ShaderGlobals
 	Mat4x4 view;
 	float time;
 };
+#pragma pack(pop)
+
+
 
 struct Buffer
 {
@@ -173,6 +173,7 @@ constexpr u32 ZERO = 0;
 constexpr u32 MAX_NUM_DRAW_CALLS = 4096;
 ID3D12CommandSignature* command_signature;
 
+#pragma pack(push,4)
 struct alignas(16) DrawCallInfo {
     DrawInfo draw_info;
     D3D12_INDEX_BUFFER_VIEW index_buffer_view;
@@ -180,6 +181,7 @@ struct alignas(16) DrawCallInfo {
 	float bounding_radius;
 	u32 packing_a;
 	u32 packing_b;
+	vec3 bounding_centre;
 };
 
 
@@ -205,6 +207,8 @@ struct alignas(16) DrawArguments {
 	DrawInfo draw_info;
 	D3D12_DRAW_INDEXED_ARGUMENTS_ALIGNED indexed;
 };
+
+#pragma pack(pop)
 
 
 int command_buffer_offset_to_counter;
@@ -361,6 +365,7 @@ struct Vertex
 
 struct Mesh
 {
+	vec3 bounding_centre;
 	float bounding_radius;
 
 	u32 index_count;
@@ -449,13 +454,30 @@ Mesh load_mesh(char* filename) {
     
 	meshopt_optimizeVertexCache(indices, indices, index_count, vertex_count);
 	meshopt_optimizeVertexFetch(new_vertices, indices, index_count, new_vertices, vertex_count, sizeof(Vertex));
-    
+
+
+	float weight = 1.0 / (float)vertex_count;
 	for (int i = 0; i < vertex_count; ++i) {
 		Vertex& v = new_vertices[i];
-		result.bounding_radius = MAX(result.bounding_radius, sqrt(v.position[0]*v.position[0] + v.position[1]*v.position[1] + v.position[2]*v.position[2]));
+
+		result.bounding_centre.x += v.position[0] * weight;
+		result.bounding_centre.y += v.position[1] * weight;
+		result.bounding_centre.z += v.position[2] * weight;
 	}
 
-	printf("Mesh %s had bounds %f\n", filename, result.bounding_radius);
+	for (int i = 0; i < vertex_count; ++i) {
+		Vertex& v = new_vertices[i];
+
+		vec3 p;
+		p.x = v.position[0];
+		p.y = v.position[1];
+		p.z = v.position[2];
+
+		// p -= result.bounding_centre;TODO(ANDREW) USE THIS
+
+		result.bounding_radius = MAX(result.bounding_radius, length(p));
+	}
+	printf("Mesh %s had bounds %f, centre %f %f %f\n", filename, result.bounding_radius, result.bounding_centre.x, result.bounding_centre.y, result.bounding_centre.z);
     
 	result.index_count = index_count;
 	result.vertex_count = vertex_count;

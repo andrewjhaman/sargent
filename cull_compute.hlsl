@@ -11,10 +11,6 @@ struct DrawInfo {
 	float4 quat;
 	float3 position;
 	uint vertex_buffer_index;
-	uint __packing_a;
-	uint __packing_b;
-	uint __packing_c;
-	uint __packing_d;
 };
 
 
@@ -27,6 +23,7 @@ struct DrawCallInfo {
 	float bounding_radius;	
 	int pa;
 	int pb;
+	float3 bounding_centre;
 };
 
 
@@ -95,6 +92,9 @@ void main (uint3 dispatch_thread_id : SV_DispatchThreadID)
 	frustum_planes[5] = row_4+row_3;
 
 	float4 p = float4(draw_call_info.draw_info.position.x, draw_call_info.draw_info.position.y, draw_call_info.draw_info.position.z, 1.0);
+
+	// p += draw_call_info.bounding_centre; TODO(ANDREW) USE THIS
+
 	p = mul(globals.view,p);
 
 	bool is_visible = true;
@@ -116,10 +116,6 @@ void main (uint3 dispatch_thread_id : SV_DispatchThreadID)
 	DrawArguments result;
 
 	{
-		result.draw_info.__packing_a = 0;
-		result.draw_info.__packing_b = 0;
-		result.draw_info.__packing_c = 0;
-		result.draw_info.__packing_d = 0;
 		result.packing_a = 0;
 		result.packing_b = 0;
 	}
