@@ -27,3 +27,6 @@ x64/Release/dx12_renderer.tlog/dx12_renderer.lastbuildstate
 .vs/dx12_renderer/v17/fileList.bin
 x64/Release/dx12_renderer.tlog/dx12_renderer.lastbuildstate
 dx_window.obj
+Dx12_Renderer.exp
+Dx12_Renderer.lib
+dx_window.obj

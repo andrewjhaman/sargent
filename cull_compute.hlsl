@@ -24,10 +24,9 @@ struct DrawCallInfo {
 	DrawInfo draw_info;
 	D3D12_INDEX_BUFFER_VIEW index_buffer_view;
 	uint triangle_count;
+	float bounding_radius;	
 	int pa;
 	int pb;
-	int pc;
-	//float bounding_radius;	
 };
 
 
@@ -102,21 +101,16 @@ void main (uint3 dispatch_thread_id : SV_DispatchThreadID)
 
 	bool inside = true;
 	for(int i = 0; i < 5; ++i) {
-		if (dot(p, frustum_planes[i]) >= 0.0) {
-			inside = true;
+		if (dot(p, frustum_planes[i]) < -draw_call_info.bounding_radius) {
+			inside = false;
 			break;
 		}
-
-		// inside = inside && dot(p, frustum_planes[i]) >= 0.0;
 	}
 	is_visible = is_visible && inside;
 
 	if(!is_visible) {
 		return;
 	}
-
-	// if(draw_call_info.draw_info.position.x > 0.0) return;
-
 
 
 	DrawArguments result;

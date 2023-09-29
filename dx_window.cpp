@@ -177,6 +177,7 @@ struct alignas(16) DrawCallInfo {
     DrawInfo draw_info;
     D3D12_INDEX_BUFFER_VIEW index_buffer_view;
     u32 triangle_count;
+	float bounding_radius;
 	u32 packing_a;
 	u32 packing_b;
 };
@@ -360,6 +361,8 @@ struct Vertex
 
 struct Mesh
 {
+	float bounding_radius;
+
 	u32 index_count;
 	Buffer index_buffer;//We may not need to keep this around (We only use the index_buffer_view when rendering right now.)
 	D3D12_INDEX_BUFFER_VIEW index_buffer_view;
@@ -391,7 +394,6 @@ void load_obj(char* filename, Vertex** vertices_out, size_t* vertices_count_out)
     
 	size_t vertex_offset = 0;
 	size_t index_offset = 0;
-    
     
 	for (u32 i = 0; i < obj_mesh->face_count; ++i)
 	{
@@ -448,6 +450,12 @@ Mesh load_mesh(char* filename) {
 	meshopt_optimizeVertexCache(indices, indices, index_count, vertex_count);
 	meshopt_optimizeVertexFetch(new_vertices, indices, index_count, new_vertices, vertex_count, sizeof(Vertex));
     
+	for (int i = 0; i < vertex_count; ++i) {
+		Vertex& v = new_vertices[i];
+		result.bounding_radius = MAX(result.bounding_radius, sqrt(v.position[0]*v.position[0] + v.position[1]*v.position[1] + v.position[2]*v.position[2]));
+	}
+
+	printf("Mesh %s had bounds %f\n", filename, result.bounding_radius);
     
 	result.index_count = index_count;
 	result.vertex_count = vertex_count;
@@ -1310,6 +1318,11 @@ void draw(f64 dt)
 	target = {};
 	global_data.view = look_at(cam_pos, target, { 0.0f, 1.0f, 0.0f });
 	
+
+	float l1 = length(global_data.projection.row_vecs[0]);
+	float l2 = length(global_data.projection.row_vecs[1]);
+	float l3 = length(global_data.projection.row_vecs[2]);
+	float bounds_scale = MAX(MAX(l1, l2), l3);
     
 	srand(101);
     
@@ -1356,8 +1369,10 @@ void draw(f64 dt)
 
                 draw_info.quat = normalize(draw_info.quat);
                 draw_info.vertex_buffer_index = mesh_index;
+
                 
                 infos[i].draw_info = draw_info;
+				infos[i].bounding_radius = mesh.bounding_radius*bounds_scale;
                 
                 triangle_count += mesh.index_count / 3;
             }
